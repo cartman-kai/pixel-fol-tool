@@ -1,0 +1,59 @@
+name: Build GUI Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当推送 v* 标签时触发，如 v1.0.0
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    strategy:
+      matrix:
+        platform: [x86, x64]
+        configuration: [Release]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+    
+    - name: Restore NuGet packages
+      run: nuget restore gui/FolToolG.sln
+    
+    - name: Build solution
+      run: msbuild gui/FolToolG.sln /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }} /m
+    
+    - name: Package artifacts
+      shell: pwsh
+      run: |
+        $platform = "${{ matrix.platform }}"
+        $outDir = "gui/$platform/Release"
+        $artifactName = "FolToolG-${{ github.ref_name }}-win-$platform"
+        
+        New-Item -ItemType Directory -Force -Path $artifactName
+        Copy-Item "$outDir/FolToolG.exe" "$artifactName/"
+        
+        # 压缩
+        Compress-Archive -Path $artifactName -DestinationPath "$artifactName.zip"
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: FolToolG-${{ github.ref_name }}-win-${{ matrix.platform }}
+        path: FolToolG-${{ github.ref_name }}-win-${{ matrix.platform }}.zip
+    
+    - name: Create Release
+      if: matrix.platform == 'x64'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          FolToolG-${{ github.ref_name }}-win-x86.zip
+          FolToolG-${{ github.ref_name }}-win-x64.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

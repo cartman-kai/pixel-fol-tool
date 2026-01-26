@@ -1,0 +1,162 @@
+﻿#include <windows.h>
+#include "resource.h"
+#include "winres.h"
+
+// ============================================================
+// 1. 设置界面语言 (默认英语，自动根据系统加载)
+// ============================================================
+LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
+
+// ============================================================
+// 2. 对话框定义 (主界面布局)
+// 坐标单位是 DLU (Dialog Logical Units)，会自动随 DPI 缩放
+// ============================================================
+IDD_MAIN_DIALOG DIALOGEX 0, 0, 300, 300
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX
+CAPTION "FOL Tool GUI" // 默认标题，会被 StringTable 覆盖
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+// --- 解包区域 (Unpack) ---
+GROUPBOX        "Unpack Game Assets", IDC_GRP_UNPACK, 10, 5, 280, 75
+
+LTEXT           "FOL File:", IDC_STATIC, 20, 20, 40, 8
+EDITTEXT        IDC_EDIT_FOL_PATH, 60, 18, 170, 14, ES_AUTOHSCROLL | ES_READONLY
+PUSHBUTTON      "...", IDC_BTN_BROWSE_FOL, 235, 18, 45, 14
+
+LTEXT           "Output:", IDC_STATIC, 20, 40, 40, 8
+EDITTEXT        IDC_EDIT_OUT_DIR, 60, 38, 170, 14, ES_AUTOHSCROLL | ES_READONLY
+PUSHBUTTON      "...", IDC_BTN_BROWSE_OUT, 235, 38, 45, 14
+
+PUSHBUTTON      "Start Unpack", IDC_BTN_RUN_UNPACK, 20, 58, 260, 16
+
+// --- 打包区域 (Pack) ---
+GROUPBOX        "Pack Game Assets", IDC_GRP_PACK, 10, 85, 280, 75
+
+LTEXT           "Assets Dir:", IDC_STATIC, 20, 100, 40, 8
+EDITTEXT        IDC_EDIT_IN_DIR, 60, 98, 170, 14, ES_AUTOHSCROLL | ES_READONLY
+PUSHBUTTON      "...", IDC_BTN_BROWSE_IN, 235, 98, 45, 14
+
+LTEXT           "Save To:", IDC_STATIC, 20, 120, 40, 8
+EDITTEXT        IDC_EDIT_FOL_OUT, 60, 118, 170, 14, ES_AUTOHSCROLL | ES_READONLY
+PUSHBUTTON      "...", IDC_BTN_BROWSE_SAVE, 235, 118, 45, 14
+
+PUSHBUTTON      "Start Pack", IDC_BTN_RUN_PACK, 20, 138, 260, 16
+
+// --- 日志与状态 ---
+LTEXT           "Status Log:", IDC_STATIC, 10, 165, 60, 8
+EDITTEXT        IDC_EDIT_LOG, 10, 175, 280, 60, ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL
+
+CONTROL         "", IDC_PROGRESS_BAR, "msctls_progress32", WS_BORDER, 10, 240, 280, 10
+
+// --- 作者与关于区域 ---
+GROUPBOX        "About", IDC_GRP_ABOUT, 10, 255, 280, 40
+LTEXT           "Description: 刀剑封魔录系列 fol 文件解包与打包工具", IDC_STATIC_DESC, 20, 268, 260, 8
+LTEXT           "Author: cartman-kai", IDC_STATIC_AUTHOR, 20, 280, 100, 8
+LTEXT           "GitHub: github.com/cartman-kai", IDC_STATIC_LINK, 130, 280, 150, 8
+END
+
+// ============================================================
+// 3. 字符串表 (多语言支持)
+// ============================================================
+
+// 英文 (默认)
+STRINGTABLE LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+BEGIN
+IDS_APP_TITLE       "FOL Tool GUI - v1.0"
+IDS_GRP_UNPACK      "Unpack (.fol -> files)"
+IDS_GRP_PACK        "Pack (files -> .fol)"
+IDS_BTN_BROWSE      "Browse"
+IDS_BTN_UNPACK      "Extract Files"
+IDS_BTN_PACK        "Create .fol Archive"
+IDS_READY           "Ready."
+IDS_ERR_NO_FOL      "Please select a .fol file first."
+IDS_ERR_NO_DIR      "Please select a directory."
+IDS_SUCCESS         "Operation completed successfully!"
+END
+
+// 中文 (简体)
+STRINGTABLE LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED
+BEGIN
+IDS_APP_TITLE       "FOL 游戏资源工具 - v1.0"
+IDS_GRP_UNPACK      "资源解包 (Unpack)"
+IDS_GRP_PACK        "资源打包 (Pack)"
+IDS_BTN_BROWSE      "浏览..."
+IDS_BTN_UNPACK      "开始解包"
+IDS_BTN_PACK        "开始打包"
+IDS_READY           "准备就绪。"
+IDS_ERR_NO_FOL      "请先选择一个 .fol 文件。"
+IDS_ERR_NO_DIR      "请先选择一个目录。"
+IDS_SUCCESS         "操作成功完成！"
+END
+
+// 中文 (繁体)
+STRINGTABLE LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_TRADITIONAL
+BEGIN
+IDS_APP_TITLE       "FOL 遊戲資源工具 - v1.0"
+IDS_GRP_UNPACK      "資源解包 (Unpack)"
+IDS_GRP_PACK        "資源打包 (Pack)"
+IDS_BTN_BROWSE      "瀏覽..."
+IDS_BTN_UNPACK      "開始解包"
+IDS_BTN_PACK        "開始打包"
+IDS_READY           "準備就緒。"
+IDS_ERR_NO_FOL      "請先選擇一個 .fol 檔案。"
+IDS_ERR_NO_DIR      "請先選擇一個目錄。"
+IDS_SUCCESS         "操作成功完成！"
+END
+
+// ============================================================
+// 4. Manifest (启用视觉样式控件)
+// ============================================================
+1 RT_MANIFEST
+BEGIN
+"<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>\r\n"
+"<assembly xmlns=""urn:schemas-microsoft-com:asm.v1"" manifestVersion=""1.0"">\r\n"
+"  <dependency>\r\n"
+"    <dependentAssembly>\r\n"
+"      <assemblyIdentity type=""win32"" name=""Microsoft.Windows.Common-Controls"" version=""6.0.0.0"" processorArchitecture=""*"" publicKeyToken=""6595b64144ccf1df"" language=""*"" />\r\n"
+"    </dependentAssembly>\r\n"
+"  </dependency>\r\n"
+"  <application xmlns=""urn:schemas-microsoft-com:asm.v3"">\r\n"
+"    <windowsSettings>\r\n"
+"      <dpiAware xmlns=""http://schemas.microsoft.com/SMI/2005/WindowsSettings"">true</dpiAware>\r\n"
+"      <dpiAwareness xmlns=""http://schemas.microsoft.com/SMI/2016/WindowsSettings"">PerMonitorV2</dpiAwareness>\r\n"
+"    </windowsSettings>\r\n"
+"  </application>\r\n"
+"</assembly>"
+END
+
+// ============================================================
+// 5. 版本信息 (右键属性可见)
+// ============================================================
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION 1, 0, 0, 0
+PRODUCTVERSION 1, 0, 0, 0
+FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+FILEFLAGS 0x1L
+#else
+FILEFLAGS 0x0L
+#endif
+FILEOS 0x40004L
+FILETYPE 0x1L
+FILESUBTYPE 0x0L
+BEGIN
+BLOCK "StringFileInfo"
+BEGIN
+BLOCK "080404b0" // 中文 (简体)
+BEGIN
+VALUE "CompanyName", "cartman-kai"
+VALUE "FileDescription", "刀剑封魔录系列 fol 文件解包与打包工具"
+VALUE "FileVersion", "1.0.0.0"
+VALUE "InternalName", "FolToolG.exe"
+VALUE "LegalCopyright", "Copyright (C) 2024 cartman-kai"
+VALUE "OriginalFilename", "FolToolG.exe"
+VALUE "ProductName", "FOL Tool"
+VALUE "ProductVersion", "1.0.0.0"
+END
+END
+BLOCK "VarFileInfo"
+BEGIN
+VALUE "Translation", 0x804, 1200
+END
+END

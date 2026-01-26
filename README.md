@@ -1,51 +1,31 @@
-# Pixel Fol Tool (PFT)
+# Pixel Fol Tool
 
-**免责声明本工具仅供学习研究和技术交流使用。请勿用于任何商业用途或侵犯版权的行为。**
+**免责声明：本工具仅供学习研究和技术交流使用。请勿用于任何商业用途或侵犯版权的行为。**
 
-一个用于提取和打包 Pixel Software（像素软件）游戏引擎 `.fol` 资源文件的命令行工具。该工具基于逆向工程分析编写，实现了完整的加密与解密流程。
+一个用于提取和打包 Pixel Software（像素软件）游戏引擎 `.fol` 资源文件的工具集。该工具基于逆向工程分析编写，实现了完整的加密与解密流程。
 
-## 功能特性
+本项目提供了三个版本的实现，以满足不同用户的需求：
 
-* **跨平台**: 兼容 Windows, macOS, Linux。
-* **解包 (Unpack)**: 自动识别密钥，完整还原文件名、目录结构和文件内容。
-* **打包 (Pack)**: 将修改后的资源目录重新打包为游戏可识别的 `.fol` 文件，并自动生成新的加密密钥。
-* **算法还原**: 完美复刻了原版的索引加密 (Cubic Polynomial) 和内容加密 (Quadratic Polynomial) 算法。
+## 1. GUI 版本 (`/gui`)
+提供了易于使用的 Windows 图形化界面，支持多语言、进度展示和日志查看。
+- **构建环境**: Visual Studio 2022 (C++20)。
+- **快速开始**: 打开 `gui/FolToolG.sln`，选择 `Release/x64` 进行编译。
 
-## 使用方法
+## 2. C 语言版本 (`/c`)
+纯 C 编写的最基础算法实现，追求极致的执行效率和二进制稳定性。
+- **构建说明**:
+  ```bash
+  cd c
+  make
+  ```
+- **运行**: `./fol_tool` (查看 CLI 帮助)。
 
-确保你安装了 Python 3.6 或更高版本。
+## 3. Python 版本 (`/python`)
+面向脚本用户和跨平台快速部署，代码清晰，易于二次开发。
+- **依赖**: Python 3.6+。
+- **说明**: 详见 [python/README.md](./python/README.md)。
 
-### 1. 解包文件 (Unpack)
-
-将 `.fol` 文件提取到文件夹中。
-
-```bash
-# 基础用法 (默认输出到 slr_fol 文件夹)
-python3 fol_tool.py unpack slr.fol
-
-# 指定输出目录
-python3 fol_tool.py unpack slr.fol -o ./extracted_data
-```
-
-### 2. 打包文件 (Pack)
-
-
-将修改后的文件夹打包回 .fol 文件。
-
-```bash
-# 基础用法 (默认输出为 output.fol)
-
-python fol_tool.py pack ./extracted_data
-
-# 指定输出文件名
-python fol_tool.py pack ./extracted_data -o New_data.fol
-```
-
-### 3. 查看帮助
-
-```
-python fol_tool.py -h
-```
+---
 
 ## FOL 文件格式分析
 
