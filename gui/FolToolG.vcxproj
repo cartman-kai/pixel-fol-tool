@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FolToolWin.rc" />
+    <Image Include="FolG.ico" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="FolCore.hpp" />
