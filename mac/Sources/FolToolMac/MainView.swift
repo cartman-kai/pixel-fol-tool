@@ -10,6 +10,12 @@ enum ToolMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+struct AlertState: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+}
+
 @MainActor
 final class MainViewModel: ObservableObject {
     @Published var selectedMode: ToolMode = .unpack
@@ -20,6 +26,9 @@ final class MainViewModel: ObservableObject {
     @Published var logs: [String] = ["准备就绪。"]
     @Published var progress = 0.0
     @Published var isRunning = false
+    @Published var activeAlert: AlertState?
+    @Published var resultURL: URL?
+    @Published private(set) var runningMode: ToolMode?
 
     private var pendingLogBuffer = ""
 
@@ -55,24 +64,26 @@ final class MainViewModel: ObservableObject {
     func runCurrentAction() {
         switch selectedMode {
         case .unpack:
-            runUnpackPlaceholder()
+            runUnpackTask()
         case .pack:
-            runPackPlaceholder()
+            runPackTask()
         }
     }
 
-    private func runUnpackPlaceholder() {
+    private func runUnpackTask() {
         guard !unpackInputPath.isEmpty else {
-            appendLog("错误：请先选择要解包的 .fol 文件。")
+            presentError(title: "无法开始解包", message: "请先选择要解包的 .fol 文件。")
             return
         }
         guard !unpackOutputPath.isEmpty else {
-            appendLog("错误：请先选择输出目录。")
+            presentError(title: "无法开始解包", message: "请先选择输出目录。")
             return
         }
         runTool(
+            mode: .unpack,
             title: "开始解包",
             arguments: ["unpack", unpackInputPath, unpackOutputPath],
+            resultURL: URL(fileURLWithPath: unpackOutputPath),
             details: [
                 "输入文件: \(unpackInputPath)",
                 "输出目录: \(unpackOutputPath)",
@@ -80,18 +91,20 @@ final class MainViewModel: ObservableObject {
         )
     }
 
-    private func runPackPlaceholder() {
+    private func runPackTask() {
         guard !packInputPath.isEmpty else {
-            appendLog("错误：请先选择工作区目录。")
+            presentError(title: "无法开始打包", message: "请先选择工作区目录。")
             return
         }
         guard !packOutputPath.isEmpty else {
-            appendLog("错误：请先选择输出 .fol 文件。")
+            presentError(title: "无法开始打包", message: "请先选择输出 .fol 文件。")
             return
         }
         runTool(
+            mode: .pack,
             title: "开始打包",
             arguments: ["pack", packInputPath, packOutputPath],
+            resultURL: URL(fileURLWithPath: packOutputPath),
             details: [
                 "工作区目录: \(packInputPath)",
                 "输出文件: \(packOutputPath)",
@@ -99,13 +112,15 @@ final class MainViewModel: ObservableObject {
         )
     }
 
-    private func runTool(title: String, arguments: [String], details: [String]) {
+    private func runTool(mode: ToolMode, title: String, arguments: [String], resultURL: URL, details: [String]) {
         guard !isRunning else {
             return
         }
 
         isRunning = true
+        runningMode = mode
         progress = 0
+        self.resultURL = nil
         pendingLogBuffer = ""
         appendLog("==========")
         appendLog(title)
@@ -135,7 +150,6 @@ final class MainViewModel: ObservableObject {
                     ) { chunk in
                         Task { @MainActor [weak self] in
                             self?.consumeLogChunk(chunk)
-                            self?.advanceProgress(toAtLeast: 0.2)
                         }
                     }
                 }
@@ -152,21 +166,23 @@ final class MainViewModel: ObservableObject {
                 ) { chunk in
                     Task { @MainActor [weak self] in
                         self?.consumeLogChunk(chunk)
-                        self?.incrementProgressDuringRun()
                     }
                 }
 
                 await MainActor.run {
                     self.flushPendingLogBuffer()
                     self.progress = 1.0
+                    self.resultURL = resultURL
                     self.appendLog("任务完成。")
                     self.isRunning = false
+                    self.runningMode = nil
                 }
             } catch {
                 await MainActor.run {
                     self.flushPendingLogBuffer()
-                    self.appendLog("任务失败：\(error.localizedDescription)")
+                    self.presentError(title: "任务执行失败", message: error.localizedDescription)
                     self.isRunning = false
+                    self.runningMode = nil
                 }
             }
         }
@@ -174,6 +190,24 @@ final class MainViewModel: ObservableObject {
 
     private func appendLog(_ message: String) {
         logs.append(message)
+    }
+
+    private func presentError(title: String, message: String) {
+        appendLog("错误：\(message)")
+        activeAlert = AlertState(title: title, message: message)
+    }
+
+    func revealResultInFinder() {
+        guard let resultURL else {
+            presentError(title: "无法显示结果", message: "当前没有可显示的结果路径。")
+            return
+        }
+        guard FileManager.default.fileExists(atPath: resultURL.path) else {
+            presentError(title: "无法显示结果", message: "结果路径不存在：\(resultURL.path)")
+            return
+        }
+
+        NSWorkspace.shared.activateFileViewerSelecting([resultURL])
     }
 
     private func consumeLogChunk(_ chunk: String) {
@@ -185,12 +219,12 @@ final class MainViewModel: ObservableObject {
         if normalized.hasSuffix("\n") {
             pendingLogBuffer = ""
             for part in parts where !part.isEmpty {
-                appendLog(String(part))
+                handleLogLine(String(part))
             }
         } else if let last = parts.last {
             pendingLogBuffer = String(last)
             for part in parts.dropLast() where !part.isEmpty {
-                appendLog(String(part))
+                handleLogLine(String(part))
             }
         }
     }
@@ -199,16 +233,61 @@ final class MainViewModel: ObservableObject {
         guard !pendingLogBuffer.isEmpty else {
             return
         }
-        appendLog(pendingLogBuffer)
+        handleLogLine(pendingLogBuffer)
         pendingLogBuffer = ""
     }
 
-    private func advanceProgress(toAtLeast value: Double) {
-        progress = max(progress, value)
+    private func handleLogLine(_ line: String) {
+        appendLog(line)
+        updateProgress(for: line)
     }
 
-    private func incrementProgressDuringRun() {
-        progress = min(max(progress + 0.03, 0.3), 0.95)
+    private func updateProgress(for line: String) {
+        if line.contains("Compiling for macOS") {
+            progress = max(progress, 0.15)
+            return
+        }
+        if line.contains("Output: fol_tool_mac") {
+            progress = max(progress, 0.22)
+            return
+        }
+
+        guard let runningMode else {
+            return
+        }
+
+        switch runningMode {
+        case .unpack:
+            if line.contains("[*] 正在解包:") {
+                progress = max(progress, 0.35)
+            } else if line.contains("[*] 文件数量:") {
+                progress = max(progress, 0.45)
+            } else if line.contains("[*] 创建工作空间:") {
+                progress = max(progress, 0.6)
+            } else if line.contains("[ok] 密钥清单已保存") {
+                progress = max(progress, 0.85)
+            } else if line.contains("[ok] 解包完成") {
+                progress = max(progress, 1.0)
+            } else if line.hasPrefix("[!]") {
+                progress = max(progress, 0.95)
+            }
+        case .pack:
+            if line.contains("[*] 正在分析工作空间:") {
+                progress = max(progress, 0.35)
+            } else if line.contains("[*] 已加载密钥清单:") {
+                progress = max(progress, 0.48)
+            } else if line.contains("[*] 扫描到物理文件:") {
+                progress = max(progress, 0.62)
+            } else if line.contains("[+] 发现新增文件:") {
+                progress = min(max(progress + 0.02, 0.62), 0.72)
+            } else if line.contains("[*] 正在写入数据...") {
+                progress = max(progress, 0.82)
+            } else if line.contains("[ok] 打包成功") {
+                progress = max(progress, 1.0)
+            } else if line.hasPrefix("[!]") {
+                progress = max(progress, 0.95)
+            }
+        }
     }
 
     nonisolated private static var repoRootURL: URL {
@@ -299,6 +378,7 @@ struct MainView: View {
                 Label(mode.rawValue, systemImage: mode == .unpack ? "tray.and.arrow.down" : "archivebox")
                     .tag(mode)
             }
+            .disabled(viewModel.isRunning)
             .navigationSplitViewColumnWidth(min: 180, ideal: 200)
         } detail: {
             VStack(alignment: .leading, spacing: 20) {
@@ -310,6 +390,13 @@ struct MainView: View {
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(Color(nsColor: .windowBackgroundColor))
+        }
+        .alert(item: $viewModel.activeAlert) { alert in
+            Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                dismissButton: .default(Text("确定"))
+            )
         }
     }
 
@@ -366,6 +453,15 @@ struct MainView: View {
                         ProgressView()
                             .controlSize(.small)
                     }
+
+                    Spacer()
+
+                    if viewModel.resultURL != nil {
+                        Button("在 Finder 中显示结果") {
+                            viewModel.revealResultInFinder()
+                        }
+                        .disabled(viewModel.isRunning)
+                    }
                 }
             }
             .padding(8)
@@ -395,15 +491,24 @@ struct MainView: View {
             Text("日志")
                 .font(.headline)
 
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(viewModel.logs.enumerated()), id: \.offset) { _, line in
-                        Text(line)
-                            .font(.system(size: 12, weight: .regular, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(viewModel.logs.enumerated()), id: \.offset) { _, line in
+                            Text(line)
+                                .font(.system(size: 12, weight: .regular, design: .monospaced))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+
+                        Color.clear
+                            .frame(height: 1)
+                            .id("log-bottom")
                     }
+                    .padding(12)
                 }
-                .padding(12)
+                .onChange(of: viewModel.logs.count) { _ in
+                    proxy.scrollTo("log-bottom", anchor: .bottom)
+                }
             }
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
