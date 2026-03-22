@@ -65,3 +65,4 @@ wheels/
 *.a
 *.out
 fol_tool
+fol_tool_mac

@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
+import Foundation
 
 enum ToolMode: String, CaseIterable, Identifiable {
     case unpack = "解包"
@@ -19,6 +20,8 @@ final class MainViewModel: ObservableObject {
     @Published var logs: [String] = ["准备就绪。"]
     @Published var progress = 0.0
     @Published var isRunning = false
+
+    private var pendingLogBuffer = ""
 
     func chooseFolFile() {
         guard let url = Self.openFilePanel(
@@ -67,12 +70,12 @@ final class MainViewModel: ObservableObject {
             appendLog("错误：请先选择输出目录。")
             return
         }
-        runPlaceholderTask(
+        runTool(
             title: "开始解包",
+            arguments: ["unpack", unpackInputPath, unpackOutputPath],
             details: [
                 "输入文件: \(unpackInputPath)",
                 "输出目录: \(unpackOutputPath)",
-                "占位流程：后续会在这里接入 C 核心的 fol_unpack。",
             ]
         )
     }
@@ -86,40 +89,177 @@ final class MainViewModel: ObservableObject {
             appendLog("错误：请先选择输出 .fol 文件。")
             return
         }
-        runPlaceholderTask(
+        runTool(
             title: "开始打包",
+            arguments: ["pack", packInputPath, packOutputPath],
             details: [
                 "工作区目录: \(packInputPath)",
                 "输出文件: \(packOutputPath)",
-                "占位流程：后续会在这里接入 C 核心的 fol_pack。",
             ]
         )
     }
 
-    private func runPlaceholderTask(title: String, details: [String]) {
+    private func runTool(title: String, arguments: [String], details: [String]) {
         guard !isRunning else {
             return
         }
 
         isRunning = true
         progress = 0
+        pendingLogBuffer = ""
         appendLog("==========")
         appendLog(title)
         details.forEach(appendLog)
 
-        Task {
-            for step in 1...5 {
-                try? await Task.sleep(for: .milliseconds(180))
-                progress = Double(step) / 5.0
-                appendLog("占位任务进度：\(step * 20)%")
+        let rootURL = Self.repoRootURL
+        let binaryURL = Self.cliBinaryURL
+
+        Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self else { return }
+
+            do {
+                await MainActor.run {
+                    self.progress = 0.05
+                    self.appendLog("检查 CLI 后端: \(binaryURL.path)")
+                }
+
+                if !FileManager.default.fileExists(atPath: binaryURL.path) {
+                    await MainActor.run {
+                        self.appendLog("未找到 CLI 二进制，开始自动构建...")
+                        self.progress = 0.1
+                    }
+                    try Self.runProcess(
+                        executableURL: URL(fileURLWithPath: "/usr/bin/make"),
+                        arguments: ["-C", "c", "mac"],
+                        workingDirectory: rootURL
+                    ) { chunk in
+                        Task { @MainActor [weak self] in
+                            self?.consumeLogChunk(chunk)
+                            self?.advanceProgress(toAtLeast: 0.2)
+                        }
+                    }
+                }
+
+                await MainActor.run {
+                    self.appendLog("启动命令: \(binaryURL.lastPathComponent) \(arguments.joined(separator: " "))")
+                    self.progress = max(self.progress, 0.25)
+                }
+
+                try Self.runProcess(
+                    executableURL: binaryURL,
+                    arguments: arguments,
+                    workingDirectory: rootURL
+                ) { chunk in
+                    Task { @MainActor [weak self] in
+                        self?.consumeLogChunk(chunk)
+                        self?.incrementProgressDuringRun()
+                    }
+                }
+
+                await MainActor.run {
+                    self.flushPendingLogBuffer()
+                    self.progress = 1.0
+                    self.appendLog("任务完成。")
+                    self.isRunning = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.flushPendingLogBuffer()
+                    self.appendLog("任务失败：\(error.localizedDescription)")
+                    self.isRunning = false
+                }
             }
-            appendLog("占位任务完成。下一步接入真实核心逻辑。")
-            isRunning = false
         }
     }
 
     private func appendLog(_ message: String) {
         logs.append(message)
+    }
+
+    private func consumeLogChunk(_ chunk: String) {
+        pendingLogBuffer.append(chunk)
+
+        let normalized = pendingLogBuffer.replacingOccurrences(of: "\r\n", with: "\n")
+        let parts = normalized.split(separator: "\n", omittingEmptySubsequences: false)
+
+        if normalized.hasSuffix("\n") {
+            pendingLogBuffer = ""
+            for part in parts where !part.isEmpty {
+                appendLog(String(part))
+            }
+        } else if let last = parts.last {
+            pendingLogBuffer = String(last)
+            for part in parts.dropLast() where !part.isEmpty {
+                appendLog(String(part))
+            }
+        }
+    }
+
+    private func flushPendingLogBuffer() {
+        guard !pendingLogBuffer.isEmpty else {
+            return
+        }
+        appendLog(pendingLogBuffer)
+        pendingLogBuffer = ""
+    }
+
+    private func advanceProgress(toAtLeast value: Double) {
+        progress = max(progress, value)
+    }
+
+    private func incrementProgressDuringRun() {
+        progress = min(max(progress + 0.03, 0.3), 0.95)
+    }
+
+    nonisolated private static var repoRootURL: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+
+    nonisolated private static var cliBinaryURL: URL {
+        repoRootURL.appendingPathComponent("c/fol_tool_mac")
+    }
+
+    nonisolated private static func runProcess(
+        executableURL: URL,
+        arguments: [String],
+        workingDirectory: URL,
+        onOutput: @escaping @Sendable (String) -> Void
+    ) throws {
+        let process = Process()
+        let pipe = Pipe()
+
+        process.executableURL = executableURL
+        process.arguments = arguments
+        process.currentDirectoryURL = workingDirectory
+        process.standardOutput = pipe
+        process.standardError = pipe
+
+        pipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard !data.isEmpty else {
+                return
+            }
+            let text = String(decoding: data, as: UTF8.self)
+            onOutput(text)
+        }
+
+        try process.run()
+        process.waitUntilExit()
+        pipe.fileHandleForReading.readabilityHandler = nil
+
+        if process.terminationStatus != 0 {
+            throw NSError(
+                domain: "FolToolMac.ProcessError",
+                code: Int(process.terminationStatus),
+                userInfo: [
+                    NSLocalizedDescriptionKey: "命令退出码 \(process.terminationStatus)"
+                ]
+            )
+        }
     }
 
     private static func openFilePanel(title: String, allowedContentTypes: [UTType]) -> URL? {
@@ -177,7 +317,7 @@ struct MainView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Pixel FOL Tool")
                 .font(.system(size: 28, weight: .semibold))
-            Text("macOS 图形界面脚手架。当前已打通窗口、表单和日志区域，核心打包/解包逻辑待接入。")
+            Text("macOS 图形界面脚手架。当前已接入 C CLI 后端，可从界面触发现有解包与打包流程。")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
         }
