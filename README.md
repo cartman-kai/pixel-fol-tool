@@ -39,6 +39,19 @@ make mac
 
 生成物为 `c/fol_tool_mac`。`mac/` 图形界面会优先复用它，不存在时自动执行一次本地构建。
 
+### macOS SwiftUI GUI
+
+```bash
+swift build --package-path mac
+```
+
+也可以直接运行：
+
+```bash
+cd mac
+swift run FolToolMac
+```
+
 ### Python
 
 ```bash
@@ -66,6 +79,18 @@ pwsh -File tests/run-roundtrip.ps1 -CliPath c\x64\Release\FolToolCli.exe
 
 ```powershell
 pwsh -File tests/run-roundtrip.ps1 -CliPath c\x64\Release\FolToolCli.exe -InputFol path\to\sample.fol
+```
+
+macOS Bash 可运行：
+
+```bash
+bash tests/run-roundtrip-mac.sh --cli-path c/fol_tool_mac
+```
+
+也可以传入你有权使用的外部样例：
+
+```bash
+bash tests/run-roundtrip-mac.sh --cli-path c/fol_tool_mac --input-fol path/to/sample.fol
 ```
 
 更详细的结构与测试说明见 [docs/architecture.md](docs/architecture.md) 和 [docs/testing.md](docs/testing.md)。

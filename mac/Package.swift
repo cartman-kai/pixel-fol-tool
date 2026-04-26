@@ -15,7 +15,10 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "FolToolMac"
+            name: "FolToolMac",
+            resources: [
+                .process("Resources"),
+            ]
         ),
     ]
 )

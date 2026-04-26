@@ -129,61 +129,52 @@ final class MainViewModel: ObservableObject {
         let rootURL = Self.repoRootURL
         let binaryURL = Self.cliBinaryURL
 
-        Task.detached(priority: .userInitiated) { [weak self] in
+        Task { [weak self] in
             guard let self else { return }
 
             do {
-                await MainActor.run {
-                    self.progress = 0.05
-                    self.appendLog("检查 CLI 后端: \(binaryURL.path)")
-                }
+                progress = 0.05
+                appendLog("检查 CLI 后端: \(binaryURL.path)")
 
                 if !FileManager.default.fileExists(atPath: binaryURL.path) {
-                    await MainActor.run {
-                        self.appendLog("未找到 CLI 二进制，开始自动构建...")
-                        self.progress = 0.1
-                    }
-                    try Self.runProcess(
+                    appendLog("未找到 CLI 二进制，开始自动构建...")
+                    progress = 0.1
+
+                    try await Self.runProcessAsync(
                         executableURL: URL(fileURLWithPath: "/usr/bin/make"),
                         arguments: ["-C", "c", "mac"],
                         workingDirectory: rootURL
-                    ) { chunk in
-                        Task { @MainActor [weak self] in
+                    ) { [weak self] chunk in
+                        Task { @MainActor in
                             self?.consumeLogChunk(chunk)
                         }
                     }
                 }
 
-                await MainActor.run {
-                    self.appendLog("启动命令: \(binaryURL.lastPathComponent) \(arguments.joined(separator: " "))")
-                    self.progress = max(self.progress, 0.25)
-                }
+                appendLog("启动命令: \(binaryURL.lastPathComponent) \(arguments.joined(separator: " "))")
+                progress = max(progress, 0.25)
 
-                try Self.runProcess(
+                try await Self.runProcessAsync(
                     executableURL: binaryURL,
                     arguments: arguments,
                     workingDirectory: rootURL
-                ) { chunk in
-                    Task { @MainActor [weak self] in
+                ) { [weak self] chunk in
+                    Task { @MainActor in
                         self?.consumeLogChunk(chunk)
                     }
                 }
 
-                await MainActor.run {
-                    self.flushPendingLogBuffer()
-                    self.progress = 1.0
-                    self.resultURL = resultURL
-                    self.appendLog("任务完成。")
-                    self.isRunning = false
-                    self.runningMode = nil
-                }
+                flushPendingLogBuffer()
+                progress = 1.0
+                self.resultURL = resultURL
+                appendLog("任务完成。")
+                isRunning = false
+                runningMode = nil
             } catch {
-                await MainActor.run {
-                    self.flushPendingLogBuffer()
-                    self.presentError(title: "任务执行失败", message: error.localizedDescription)
-                    self.isRunning = false
-                    self.runningMode = nil
-                }
+                flushPendingLogBuffer()
+                presentError(title: "任务执行失败", message: error.localizedDescription)
+                isRunning = false
+                runningMode = nil
             }
         }
     }
@@ -318,6 +309,22 @@ final class MainViewModel: ObservableObject {
 
     nonisolated private static var cliBinaryURL: URL {
         repoRootURL.appendingPathComponent("c/fol_tool_mac")
+    }
+
+    nonisolated private static func runProcessAsync(
+        executableURL: URL,
+        arguments: [String],
+        workingDirectory: URL,
+        onOutput: @escaping @Sendable (String) -> Void
+    ) async throws {
+        try await Task.detached(priority: .userInitiated) {
+            try runProcess(
+                executableURL: executableURL,
+                arguments: arguments,
+                workingDirectory: workingDirectory,
+                onOutput: onOutput
+            )
+        }.value
     }
 
     nonisolated private static func runProcess(

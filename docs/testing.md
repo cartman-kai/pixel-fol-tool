@@ -18,9 +18,21 @@ Windows PowerShell 可直接运行：
 pwsh -File tests/run-roundtrip.ps1 -CliPath c\x64\Release\FolToolCli.exe
 ```
 
+macOS Bash 可直接运行：
+
+```bash
+bash tests/run-roundtrip-mac.sh --cli-path c/fol_tool_mac
+```
+
+如需使用外部样例，可追加参数：
+
+```bash
+bash tests/run-roundtrip-mac.sh --cli-path c/fol_tool_mac --input-fol path/to/sample.fol
+```
+
 脚本会自动完成以下动作：
 
-- 生成 synthetic `.fol`，或解包 `-InputFol` 指定的外部样例；
+- 生成 synthetic `.fol`，或解包 `-InputFol` / `--input-fol` 指定的外部样例；
 - 选择一个已提取文件并追加测试标记；
 - 重新打包；
 - 再次解包；
