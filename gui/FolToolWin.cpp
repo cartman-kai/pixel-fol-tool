@@ -68,10 +68,10 @@ std::wstring OpenDialog(HWND hwnd, bool isFolder, bool isSave, const wchar_t* fi
 // 界面更新函数 (在主线程运行)
 void AppendLog(HWND hDlg, const std::wstring& msg) {
     HWND hEdit = GetDlgItem(hDlg, IDC_EDIT_LOG);
-    int len = GetWindowTextLength(hEdit);
-    SendMessage(hEdit, EM_SETSEL, len, len);
+    int len = GetWindowTextLengthW(hEdit);
+    SendMessageW(hEdit, EM_SETSEL, len, len);
     std::wstring fullMsg = msg + L"\r\n";
-    SendMessage(hEdit, EM_REPLACESEL, 0, (LPARAM)fullMsg.c_str());
+    SendMessageW(hEdit, EM_REPLACESEL, 0, (LPARAM)fullMsg.c_str());
 }
 
 // 线程工作函数包装
@@ -100,8 +100,8 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
     {
         // 设置图标
         HICON hIcon = LoadIcon(g_hInst, MAKEINTRESOURCE(IDI_MAIN_ICON));
-        SendMessage(hDlg, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
-        SendMessage(hDlg, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+        SendMessageW(hDlg, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+        SendMessageW(hDlg, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
 
         // 加载多语言字符串
         SetWindowTextW(hDlg, LoadStr(IDS_APP_TITLE).c_str());
@@ -144,10 +144,10 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
             GetDlgItemTextW(hDlg, IDC_EDIT_FOL_PATH, path, MAX_PATH);
             GetDlgItemTextW(hDlg, IDC_EDIT_OUT_DIR, dir, MAX_PATH);
 
-            if (wcslen(path) == 0) { MessageBoxW(hDlg, LoadStr(IDS_ERR_NO_FOL).c_str(), L"Error", MB_ICONWARNING); return TRUE; }
-            if (wcslen(dir) == 0) { MessageBoxW(hDlg, LoadStr(IDS_ERR_NO_DIR).c_str(), L"Error", MB_ICONWARNING); return TRUE; }
+            if (wcslen(path) == 0) { MessageBoxW(hDlg, LoadStr(IDS_ERR_NO_FOL).c_str(), L"错误", MB_ICONWARNING); return TRUE; }
+            if (wcslen(dir) == 0) { MessageBoxW(hDlg, LoadStr(IDS_ERR_NO_DIR).c_str(), L"错误", MB_ICONWARNING); return TRUE; }
 
-            SetDlgItemTextW(hDlg, IDC_EDIT_LOG, L"Starting Unpack...\r\n");
+            SetDlgItemTextW(hDlg, IDC_EDIT_LOG, L"开始解包...\r\n");
             std::thread(ThreadWorker, hDlg, true, std::wstring(path), std::wstring(dir)).detach();
         }
         // 执行 Pack
@@ -156,10 +156,10 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
             GetDlgItemTextW(hDlg, IDC_EDIT_IN_DIR, dir, MAX_PATH);
             GetDlgItemTextW(hDlg, IDC_EDIT_FOL_OUT, file, MAX_PATH);
 
-            if (wcslen(dir) == 0) { MessageBoxW(hDlg, LoadStr(IDS_ERR_NO_DIR).c_str(), L"Error", MB_ICONWARNING); return TRUE; }
-            if (wcslen(file) == 0) { MessageBoxW(hDlg, L"请指定输出文件路径", L"Error", MB_ICONWARNING); return TRUE; }
+            if (wcslen(dir) == 0) { MessageBoxW(hDlg, LoadStr(IDS_ERR_NO_DIR).c_str(), L"错误", MB_ICONWARNING); return TRUE; }
+            if (wcslen(file) == 0) { MessageBoxW(hDlg, L"请指定输出文件路径", L"错误", MB_ICONWARNING); return TRUE; }
 
-            SetDlgItemTextW(hDlg, IDC_EDIT_LOG, L"Starting Pack...\r\n");
+            SetDlgItemTextW(hDlg, IDC_EDIT_LOG, L"开始打包...\r\n");
             std::thread(ThreadWorker, hDlg, false, std::wstring(dir), std::wstring(file)).detach();
         }
     }
@@ -174,10 +174,10 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
             EnableWindow(GetDlgItem(hDlg, IDC_BTN_RUN_UNPACK), TRUE);
             EnableWindow(GetDlgItem(hDlg, IDC_BTN_RUN_PACK), TRUE);
             if (progress == -1) {
-                MessageBoxW(hDlg, LoadStr(IDS_SUCCESS).c_str(), L"Info", MB_OK);
+                MessageBoxW(hDlg, LoadStr(IDS_SUCCESS).c_str(), L"提示", MB_OK);
             }
             else {
-                MessageBoxW(hDlg, L"任务失败，请查看日志。", L"Error", MB_OK | MB_ICONERROR);
+                MessageBoxW(hDlg, L"任务失败，请查看日志。", L"错误", MB_OK | MB_ICONERROR);
             }
         }
         else {
@@ -185,7 +185,7 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
                 AppendLog(hDlg, *pMsg);
                 delete pMsg; // 释放内存
             }
-            SendDlgItemMessage(hDlg, IDC_PROGRESS_BAR, PBM_SETPOS, progress, 0);
+            SendDlgItemMessageW(hDlg, IDC_PROGRESS_BAR, PBM_SETPOS, progress, 0);
         }
     }
     break;
