@@ -1,23 +1,20 @@
-# Makefile for FOL Tool
+# Makefile for shared-core CLI
 
-# --- 配置 ---
-SRC = fol_tool.c
+SRC = fol_tool.cpp ../core/src/fol_core.cpp
 NAME = fol_tool
 
 # 本地编译 (macOS M1)
-CC_LOCAL = clang
-CFLAGS_LOCAL = -O3 -Wall -Wextra
+CC_LOCAL = clang++
+CFLAGS_LOCAL = -O3 -Wall -Wextra -std=c++20 -I../core/include
 
 # Windows 交叉编译 (需要 brew install mingw-w64)
-CC_WIN = x86_64-w64-mingw32-gcc
-CFLAGS_WIN = -O3 -s -static -finput-charset=UTF-8 -fexec-charset=UTF-8
+CC_WIN = x86_64-w64-mingw32-g++
+CFLAGS_WIN = -O3 -s -static -std=c++20 -I../core/include
 
 # Linux 交叉编译 
-# 注意: 在 macOS 上完美交叉编译带 glibc 的 Linux 程序很困难。
-# 这里假设你安装了 x86_64-elf-gcc 并且只做最基础的编译，
-# 或者你可以将此命令替换为 docker run ...
-CC_LINUX = x86_64-elf-gcc
-CFLAGS_LINUX = -O3 -s -static
+# 注意: 这里仍然使用一个非常基础的交叉编译入口
+CC_LINUX = x86_64-elf-g++
+CFLAGS_LINUX = -O3 -s -static -std=c++20 -I../core/include
 
 # --- 目标 ---
 

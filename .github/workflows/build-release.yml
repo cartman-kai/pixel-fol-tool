@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'  # 当推送 v* 标签时触发，如 v1.0.0
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -31,11 +34,15 @@ jobs:
       shell: pwsh
       run: |
         $platform = "${{ matrix.platform }}"
-        $outDir = "gui/$platform/Release"
         $artifactName = "FolToolG-${{ github.ref_name }}-win-$platform"
+        $exePath = if ($platform -eq "x86") {
+          "gui/Release/FolToolG.exe"
+        } else {
+          "gui/$platform/Release/FolToolG.exe"
+        }
         
         New-Item -ItemType Directory -Force -Path $artifactName
-        Copy-Item "$outDir/FolToolG.exe" "$artifactName/"
+        Copy-Item $exePath "$artifactName/"
         
         # 压缩
         Compress-Archive -Path $artifactName -DestinationPath "$artifactName.zip"
@@ -45,15 +52,23 @@ jobs:
       with:
         name: FolToolG-${{ github.ref_name }}-win-${{ matrix.platform }}
         path: FolToolG-${{ github.ref_name }}-win-${{ matrix.platform }}.zip
-    
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: dist
+        merge-multiple: true
+
     - name: Create Release
-      if: matrix.platform == 'x64'
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          FolToolG-${{ github.ref_name }}-win-x86.zip
-          FolToolG-${{ github.ref_name }}-win-x64.zip
+          dist/FolToolG-${{ github.ref_name }}-win-x86.zip
+          dist/FolToolG-${{ github.ref_name }}-win-x64.zip
         draft: false
         prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

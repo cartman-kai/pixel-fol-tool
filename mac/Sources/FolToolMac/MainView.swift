@@ -252,6 +252,11 @@ final class MainViewModel: ObservableObject {
             return
         }
 
+        if let percent = progressPercent(in: line) {
+            progress = max(progress, min(Double(percent) / 100.0, 1.0))
+            return
+        }
+
         guard let runningMode else {
             return
         }
@@ -288,6 +293,19 @@ final class MainViewModel: ObservableObject {
                 progress = max(progress, 0.95)
             }
         }
+    }
+
+    private func progressPercent(in line: String) -> Int? {
+        let parts = line.split(separator: " ", omittingEmptySubsequences: true)
+        guard parts.count >= 2 else {
+            return nil
+        }
+
+        let token = parts[1]
+        guard token.hasSuffix("%"), let value = Int(token.dropLast()) else {
+            return nil
+        }
+        return value
     }
 
     nonisolated private static var repoRootURL: URL {

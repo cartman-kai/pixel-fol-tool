@@ -66,3 +66,8 @@ wheels/
 *.out
 fol_tool
 fol_tool_mac
+
+tmp/
+
+# Do not commit third-party game archives.
+tests/fixtures/fols/*.fol

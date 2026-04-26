@@ -87,16 +87,8 @@ void ThreadWorker(HWND hDlg, bool isUnpack, std::wstring p1, std::wstring p2) {
         PostMessage(hDlg, WM_USER_LOG, (WPARAM)progress, (LPARAM)pMsg);
         };
 
-    if (isUnpack) {
-        FolCore::Unpack(p1, p2, callback);
-    }
-    else {
-        FolCore::Pack(p1, p2, callback);
-    }
-
-    // 恢复按钮 (通过特殊消息或在这里直接做，但最好在主线程恢复)
-    // 这里简单起见，发个完成消息
-    PostMessage(hDlg, WM_USER_LOG, (WPARAM)-1, 0);
+    int result = isUnpack ? FolCore::Unpack(p1, p2, callback) : FolCore::Pack(p1, p2, callback);
+    PostMessage(hDlg, WM_USER_LOG, (WPARAM)(result == FOL_SUCCESS ? -1 : -2), 0);
 }
 
 // 对话框过程
@@ -178,14 +170,17 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
         int progress = (int)wParam;
         std::wstring* pMsg = (std::wstring*)lParam;
 
-        if (progress == -1) {
-            // 任务完成，恢复按钮
+        if (progress == -1 || progress == -2) {
             EnableWindow(GetDlgItem(hDlg, IDC_BTN_RUN_UNPACK), TRUE);
             EnableWindow(GetDlgItem(hDlg, IDC_BTN_RUN_PACK), TRUE);
-            MessageBoxW(hDlg, LoadStr(IDS_SUCCESS).c_str(), L"Info", MB_OK);
+            if (progress == -1) {
+                MessageBoxW(hDlg, LoadStr(IDS_SUCCESS).c_str(), L"Info", MB_OK);
+            }
+            else {
+                MessageBoxW(hDlg, L"任务失败，请查看日志。", L"Error", MB_OK | MB_ICONERROR);
+            }
         }
         else {
-            // 更新日志和进度条
             if (pMsg) {
                 AppendLog(hDlg, *pMsg);
                 delete pMsg; // 释放内存

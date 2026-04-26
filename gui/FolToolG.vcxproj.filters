@@ -26,12 +26,18 @@
     <ClInclude Include="FolCore.hpp">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="..\core\include\fol_core.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FolCore.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="FolToolWin.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="..\core\src\fol_core.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
