@@ -271,6 +271,73 @@ class FolExtractor:
         return entries
 
 # ============================
+# 列目录器
+# ============================
+class FolLister:
+    def __init__(self, input_file):
+        self.input_file = input_file
+
+    def list(self):
+        if not os.path.exists(self.input_file):
+            print(f"[!] 文件不存在: {self.input_file}")
+            return 1
+        try:
+            with open(self.input_file, 'rb') as f:
+                header = f.read(4)
+                raw_count = struct.unpack('<i', header)[0]
+                count = raw_count & 0x7FFFFFFF
+                is_encrypted = raw_count < 0
+
+                if not is_encrypted:
+                    print("[!] 不是加密的 FOL 文件")
+                    return 1
+
+                # 读取 Key (从末尾往前推)
+                offset_from_end = 4 * (-97 - count)
+                f.seek(offset_from_end, 2)
+                keys_data = f.read(4 * count)
+                keys = struct.unpack('<' + 'I' * count, keys_data)
+
+                # 读取 Index (从头部 offset 4 开始)
+                f.seek(4, 0)
+                index_data = f.read(count * 136)
+
+                entries = self._parse_index(index_data, count, keys)
+                print(f"[*] 文件数量: {count}")
+                for entry in entries:
+                    print(f"    {entry['name']}  ({entry['size']} bytes)")
+                return 0
+
+        except Exception as e:
+            print(f"[!] 列出失败: {e}")
+            return 1
+
+    def _parse_index(self, raw_index_data, count, keys):
+        entries = []
+        data_base = 4 + (count * 136)
+
+        for i in range(count):
+            key = keys[i]
+            raw_entry = raw_index_data[i*136 : (i+1)*136]
+            dec_entry = FolCrypto.transform_index(raw_entry, key, False)
+
+            name_bytes = dec_entry[:128]
+            name_end = name_bytes.find(b'\x00')
+            if name_end != -1: name_bytes = name_bytes[:name_end]
+
+            try: name = name_bytes.decode('gbk')
+            except: name = name_bytes.decode('ascii', errors='ignore')
+
+            offset = struct.unpack('<I', dec_entry[128:132])[0]
+            size = struct.unpack('<I', dec_entry[132:136])[0]
+
+            # 偏移量修正
+            if offset < data_base and offset > 0: offset += data_base
+
+            entries.append({'name': name, 'offset': offset, 'size': size})
+        return entries
+
+# ============================
 # 主入口
 # ============================
 def main():
@@ -285,6 +352,9 @@ def main():
     p_pack.add_argument('input_dir')
     p_pack.add_argument('-o', '--out')
 
+    p_list = subparsers.add_parser('list')
+    p_list.add_argument('input_file')
+
     args = parser.parse_args()
 
     if args.command == 'unpack':
@@ -294,6 +364,9 @@ def main():
     elif args.command == 'pack':
         out = args.out if args.out else "output.fol"
         FolPacker(args.input_dir, out).pack()
+
+    elif args.command == 'list':
+        FolLister(args.input_file).list()
 
 if __name__ == "__main__":
     main()

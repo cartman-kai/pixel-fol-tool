@@ -91,8 +91,8 @@ cd python && python fol_tool.py unpack mb.fol -o extracted_folder
 
 ## 发布流程
 
-- 推送 `v*` tag 触发 `.github/workflows/build.yml`：构建 x64/x86 并创建 GitHub Release。
-- 打包脚本 `scripts/prepare_release_package.ps1` 从 `gui/FolToolWin.rc` 的 `FILEVERSION` 读版本号（注意与 tag 可能不一致，脚本会警告），从 `CHANGELOG.md` 按 tag 章节提取 Release 说明（缺失时降级为占位文本）。
+- PR 触发 `.github/workflows/build.yml`：验证 Windows x64/x86、macOS 与 Python，并对两个 Windows 架构执行 synthetic round-trip。合并到 `main` 后，版本 tag 不存在时自动创建 GitHub Release。
+- 打包脚本 `scripts/prepare_release_package.ps1` 从 `gui/FolToolWin.rc` 的 `FILEVERSION` 读取语义化版本，并要求 `CHANGELOG.md` 存在完全匹配的 tag 章节；版本或发布文件不一致时直接失败。
 - 本地测试样例 `.fol` 不提交仓库，放 `tmp/fols/`（gitignored）下。
 
 ## 代码风格与提交规范

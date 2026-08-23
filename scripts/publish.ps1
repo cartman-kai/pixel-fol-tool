@@ -14,9 +14,7 @@ $releaseDir = Join-Path $repoRoot "release"
 
 $targets = @(
     "FolToolG.exe",
-    "FolToolG.pdb",
-    "FolToolCli.exe",
-    "FolToolCli.pdb"
+    "FolToolCli.exe"
 )
 
 if (-not (Test-Path $sourceDir)) {
@@ -24,6 +22,8 @@ if (-not (Test-Path $sourceDir)) {
 }
 
 New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
+Get-ChildItem -LiteralPath $releaseDir -Filter "*.pdb" -File |
+    Remove-Item -Force
 
 $published = 0
 foreach ($target in $targets) {

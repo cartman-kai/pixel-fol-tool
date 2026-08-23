@@ -21,7 +21,7 @@
 - `tests/`: 回归测试脚本。测试默认动态生成 synthetic `.fol`，不提交游戏资源样例。
 - `scripts/`: 发布与 CI 打包脚本。
 - `docs/`: 架构说明与测试说明。
-- `CHANGELOG.md`: 变更记录，发布 tag 形如 `v1.0.0`。
+- `CHANGELOG.md`: 变更记录，发布 tag 形如 `v1.0.1`。
 
 ## 环境要求
 
@@ -63,7 +63,7 @@ make mac
 pwsh scripts/publish.ps1
 ```
 
-将 `bin\x64\Release\` 下的可执行文件拷贝到 `release\`，作为对外发布的稳定集合。
+将 `bin\x64\Release\` 下的可执行文件拷贝到 `release\`，作为对外发布的稳定集合。调试符号（PDB）不会进入发布集合。
 
 ### Python
 
@@ -74,14 +74,9 @@ python fol_tool.py -h
 
 ## GitHub 发布（CI）
 
-推送 `v*` tag（如 `v1.0.0`）后，GitHub Actions 自动构建 Windows x64/x86 并创建 Release：
+发布 PR 合并到 `main` 后，GitHub Actions 会验证 Windows x64/x86、macOS 与 Python 前端，运行 synthetic round-trip，并在版本 tag 尚不存在时自动创建对应 tag 和 GitHub Release。
 
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-发布包由 `scripts/prepare_release_package.ps1` 生成：从 `gui/FolToolWin.rc` 读取版本号，从 `CHANGELOG.md` 提取对应 tag 章节作为 Release 说明。
+发布包由 `scripts/prepare_release_package.ps1` 生成：从 `gui/FolToolWin.rc` 读取版本号，从 `CHANGELOG.md` 提取对应 tag 章节作为 Release 说明。当前 Release 提供 Windows x64/x86 的 Release EXE，不包含 PDB；macOS 用户可按上文说明从源码构建。
 
 ## Round-Trip 测试
 

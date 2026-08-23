@@ -13,6 +13,9 @@ typedef enum FolLogLevel
 
 typedef void (*FolLogCallback)(int progress, FolLogLevel level, const char *message, void *user_data);
 
+// Per-entry callback while listing archive contents; path_utf8 is a local-form path (UTF-8), size is the unpacked size in bytes
+typedef void (*FolListCallback)(const char *path_utf8, unsigned int size, void *user_data);
+
 enum
 {
     FOL_SUCCESS = 0,
@@ -28,6 +31,7 @@ enum
 
 int fol_unpack(const char *input_fol, const char *output_dir, FolLogCallback callback, void *user_data);
 int fol_pack(const char *input_dir, const char *output_fol, FolLogCallback callback, void *user_data);
+int fol_list(const char *input_fol, FolListCallback callback, void *user_data);
 const char *fol_result_message(int code);
 
 #ifdef __cplusplus

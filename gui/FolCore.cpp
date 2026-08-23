@@ -145,7 +145,23 @@ struct GuiLogger
     LogCallback callback;
 };
 
-void core_logger(int progress, FolLogLevel, const char* message, void* user_data)
+struct GuiLister
+{
+    ListCallback callback;
+};
+
+void list_entry(const char* path_utf8, unsigned int size, void* user_data)
+{
+    auto* lister = static_cast<GuiLister*>(user_data);
+    if (lister == nullptr || !lister->callback)
+    {
+        return;
+    }
+
+    lister->callback(wide_from_utf8(path_utf8), size);
+}
+
+void core_logger(int progress, FolLogLevel level, const char* message, void* user_data)
 {
     auto* logger = static_cast<GuiLogger*>(user_data);
     if (logger == nullptr || !logger->callback)
@@ -153,14 +169,14 @@ void core_logger(int progress, FolLogLevel, const char* message, void* user_data
         return;
     }
 
-    logger->callback(progress, translate_core_message(message));
+    logger->callback(progress, level, translate_core_message(message));
 }
 
 void log_result_if_failed(int result, const LogCallback& logger)
 {
     if (result != FOL_SUCCESS && logger)
     {
-        logger(0, L"错误：" + translate_result_message(result));
+        logger(0, FOL_LOG_ERROR, L"错误：" + translate_result_message(result));
     }
 }
 }
@@ -181,6 +197,15 @@ int FolCore::Pack(const std::wstring& inputDir, const std::wstring& outputFol, L
     const std::string output_utf8 = utf8_from_wide(outputFol);
     GuiLogger state{ logger };
     const int result = fol_pack(input_utf8.c_str(), output_utf8.c_str(), core_logger, &state);
+    log_result_if_failed(result, logger);
+    return result;
+}
+
+int FolCore::List(const std::wstring& inputFol, const ListCallback& onEntry, LogCallback logger)
+{
+    const std::string input_utf8 = utf8_from_wide(inputFol);
+    GuiLister state{ onEntry };
+    const int result = fol_list(input_utf8.c_str(), list_entry, &state);
     log_result_if_failed(result, logger);
     return result;
 }

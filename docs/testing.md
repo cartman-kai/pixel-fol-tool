@@ -27,3 +27,5 @@ pwsh -File tests/run-roundtrip.ps1 -CliPath bin\x64\Release\FolToolCli.exe
 - 重新打包；
 - 再次解包；
 - 逐字节校验修改结果。
+
+GitHub Actions 会分别对 Windows x64 与 x86 Release CLI 执行同一 synthetic round-trip，同时验证 macOS CLI、SwiftUI 前端和 Python CLI 能够构建或启动。

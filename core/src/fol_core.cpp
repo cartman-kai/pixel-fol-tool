@@ -668,6 +668,113 @@ int fol_pack(const char *input_dir, const char *output_fol, FolLogCallback callb
     return FOL_SUCCESS;
 }
 
+int fol_list(const char *input_fol, FolListCallback callback, void *user_data)
+{
+    if (input_fol == nullptr)
+    {
+        return FOL_ERROR_INVALID_ARGUMENT;
+    }
+
+    const fs::path input_path = path_from_utf8(input_fol);
+
+    FILE *input = nullptr;
+#ifdef _WIN32
+    _wfopen_s(&input, input_path.c_str(), L"rb");
+#else
+    input = std::fopen(input_path.c_str(), "rb");
+#endif
+    if (input == nullptr)
+    {
+        return FOL_ERROR_OPEN_INPUT;
+    }
+
+    std::error_code file_size_error;
+    const std::uintmax_t archive_size = fs::file_size(input_path, file_size_error);
+    if (file_size_error || archive_size < sizeof(std::uint32_t) + kPaddingCount * sizeof(std::uint32_t))
+    {
+        std::fclose(input);
+        return FOL_ERROR_FORMAT;
+    }
+
+    std::int32_t raw_count = 0;
+    if (!read_exact(input, &raw_count, sizeof(raw_count)))
+    {
+        std::fclose(input);
+        return FOL_ERROR_READ;
+    }
+
+    const bool encrypted = raw_count < 0;
+    const int file_count = raw_count & 0x7FFFFFFF;
+    if (!encrypted || file_count <= 0)
+    {
+        std::fclose(input);
+        return FOL_ERROR_FORMAT;
+    }
+
+    const std::uintmax_t index_size = static_cast<std::uintmax_t>(file_count) * kIndexEntrySize;
+    const std::uintmax_t key_table_size = static_cast<std::uintmax_t>(file_count) * sizeof(std::uint32_t);
+    const std::uintmax_t footer_size = key_table_size + kPaddingCount * sizeof(std::uint32_t);
+    const std::uintmax_t data_base_wide = sizeof(std::uint32_t) + index_size;
+    if (index_size > std::numeric_limits<std::size_t>::max() ||
+        data_base_wide > std::numeric_limits<std::uint32_t>::max() ||
+        footer_size > archive_size ||
+        data_base_wide > archive_size - footer_size)
+    {
+        std::fclose(input);
+        return FOL_ERROR_FORMAT;
+    }
+
+    std::vector<std::uint32_t> keys(static_cast<std::size_t>(file_count));
+    if (std::fseek(input, -static_cast<long>(footer_size), SEEK_END) != 0 ||
+        !read_exact(input, keys.data(), keys.size() * sizeof(std::uint32_t)))
+    {
+        std::fclose(input);
+        return FOL_ERROR_READ;
+    }
+
+    if (std::fseek(input, static_cast<long>(sizeof(std::uint32_t)), SEEK_SET) != 0)
+    {
+        std::fclose(input);
+        return FOL_ERROR_READ;
+    }
+
+    std::vector<std::uint8_t> index_data(static_cast<std::size_t>(index_size));
+    if (!read_exact(input, index_data.data(), index_data.size()))
+    {
+        std::fclose(input);
+        return FOL_ERROR_READ;
+    }
+    std::fclose(input);
+
+    const std::uint32_t data_base = static_cast<std::uint32_t>(data_base_wide);
+    for (int i = 0; i < file_count; ++i)
+    {
+        std::vector<std::uint8_t> entry(kIndexEntrySize);
+        std::memcpy(entry.data(), index_data.data() + static_cast<std::size_t>(i) * kIndexEntrySize, kIndexEntrySize);
+
+        const std::uint32_t key = keys[static_cast<std::size_t>(i)];
+        transform_index(entry, key, false);
+
+        char name_buffer[129] = {};
+        std::memcpy(name_buffer, entry.data(), 128);
+        const std::string game_path(name_buffer);
+
+        std::uint32_t offset = read_u32(entry.data() + 128);
+        std::uint32_t size = read_u32(entry.data() + 132);
+        if (offset < data_base && offset > 0)
+        {
+            offset += data_base;
+        }
+
+        if (callback != nullptr)
+        {
+            callback(log_text_from_game_path(game_path).c_str(), size, user_data);
+        }
+    }
+
+    return FOL_SUCCESS;
+}
+
 const char *fol_result_message(int code)
 {
     switch (code)

@@ -75,6 +75,8 @@ tmp/
 # Release packaging (scripts/prepare_release_package.ps1)
 release_zip/
 release_notes.md
+pixel-fol-tool_*_win.zip
+pixel-fol-tool_*_win.zip.sha256
 
 # Do not commit third-party game archives.
 tests/fixtures/fols/*.fol
