@@ -33,29 +33,16 @@ if ($InputFol) {
     $input = Resolve-Path $inputPath
 }
 else {
-    $assets = Join-Path $sourceWorkspace "assets"
-    New-Item -ItemType Directory -Force -Path (Join-Path $assets "nested") | Out-Null
+    New-Item -ItemType Directory -Force -Path (Join-Path $sourceWorkspace "nested") | Out-Null
 
     $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
     [System.IO.File]::WriteAllBytes(
-        (Join-Path $assets "alpha.txt"),
+        (Join-Path $sourceWorkspace "alpha.txt"),
         $utf8NoBom.GetBytes("synthetic fixture`n")
     )
     [System.IO.File]::WriteAllBytes(
-        (Join-Path $assets "nested\odd.bin"),
+        (Join-Path $sourceWorkspace "nested\odd.bin"),
         [byte[]](0, 1, 2, 3, 4, 250, 251)
-    )
-
-    $manifest = @(
-        "# FOL Manifest",
-        "# Format: Index|Key|GamePath",
-        "0|305419896|alpha.txt",
-        "1|2271560481|nested\odd.bin"
-    )
-    [System.IO.File]::WriteAllLines(
-        (Join-Path $sourceWorkspace "manifest.txt"),
-        $manifest,
-        $utf8NoBom
     )
 
     & $cli "pack" $sourceWorkspace $sourceFol
@@ -70,9 +57,9 @@ if ($LASTEXITCODE -ne 0) {
     throw "Unpack failed with exit code $LASTEXITCODE"
 }
 
-$target = Get-ChildItem -LiteralPath (Join-Path $workspace "assets") -Recurse -File | Select-Object -First 1
+$target = Get-ChildItem -LiteralPath $workspace -Recurse -File | Select-Object -First 1
 if (-not $target) {
-    throw "No extracted files found under $workspace\assets"
+    throw "No extracted files found under $workspace"
 }
 
 $marker = [System.Text.Encoding]::UTF8.GetBytes("`nROUNDTRIP_MARKER=shared-core`n")
@@ -94,8 +81,8 @@ if ($LASTEXITCODE -ne 0) {
     throw "Verification unpack failed with exit code $LASTEXITCODE"
 }
 
-$relative = $target.FullName.Substring((Join-Path $workspace "assets").Length).TrimStart('\', '/')
-$verifiedPath = Join-Path (Join-Path $verify "assets") $relative
+$relative = $target.FullName.Substring($workspace.Length).TrimStart('\', '/')
+$verifiedPath = Join-Path $verify $relative
 if (-not (Test-Path $verifiedPath)) {
     throw "Verified file missing: $verifiedPath"
 }

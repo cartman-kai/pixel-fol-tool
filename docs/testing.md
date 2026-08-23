@@ -4,18 +4,20 @@
 
 ## 手工流程
 
-1. 生成一个 synthetic `.fol`，或选择一个你有权使用的 `.fol` 解包到工作区目录。
-2. 修改 `assets/` 下的任意文件内容。
-3. 将工作区重新打包为新的 `.fol`。
+1. 生成一个 synthetic `.fol`，或选择一个你有权使用的 `.fol` 解包到目标目录（文件直接解到该目录下，无 `assets/` 等额外子目录）。
+2. 修改解包出的任意文件内容。
+3. 选中同一目录直接重新打包为新的 `.fol`。
 4. 把新生成的 `.fol` 再次解包到第二个目录。
 5. 对比修改文件在两个目录中的字节内容，确认完全一致。
+
+文件在归档内按路径排序写入；游戏读取不依赖文件顺序，因此无需保留解包时的原始顺序。
 
 ## 自动化脚本
 
 Windows PowerShell 可直接运行：
 
 ```powershell
-pwsh -File tests/run-roundtrip.ps1 -CliPath c\x64\Release\FolToolCli.exe
+pwsh -File tests/run-roundtrip.ps1 -CliPath bin\x64\Release\FolToolCli.exe
 ```
 
 脚本会自动完成以下动作：

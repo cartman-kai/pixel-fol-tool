@@ -12,7 +12,7 @@
 共享核心负责以下协议细节：
 
 - 读取与写入 archive header、index、data block、key table、padding；
-- 维护 `manifest.txt` 格式 `Index|Key|GamePath`；
-- 保持原有文件顺序，并对新增文件执行确定性排序；
+- 解包直接输出到所选目录（无 `assets/` 子目录），不生成 manifest 清单；
+- 打包直接扫描所选目录，每个文件随机生成密钥，按路径排序写入（游戏读取不依赖文件顺序）；
 - 统一本地路径与归档内部路径的转换规则；
 - 统一错误码、日志级别和进度回调格式。

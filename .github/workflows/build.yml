@@ -1,0 +1,67 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-check:
+    name: Build Check
+    if: github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/')
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Solution (x64)
+        run: msbuild pixel-fol-tool.sln /p:Configuration=Release /p:Platform=x64
+
+      - name: Build Solution (x86)
+        run: msbuild pixel-fol-tool.sln /p:Configuration=Release /p:Platform=x86
+
+  release:
+    name: Build Release Package
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build Solution (x64)
+        run: msbuild pixel-fol-tool.sln /p:Configuration=Release /p:Platform=x64
+
+      - name: Build Solution (x86)
+        run: msbuild pixel-fol-tool.sln /p:Configuration=Release /p:Platform=x86
+
+      - name: Prepare Release Package
+        shell: pwsh
+        run: |
+          $metadata = ./scripts/prepare_release_package.ps1 -TagName "${{ github.ref_name }}"
+          $metadata
+          $metadata | Where-Object { $_ -match '^[A-Z_]+=' } | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixel-fol-tool-binary-package
+          path: "${{ env.ARCHIVE_PATH }}"
+          retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: "${{ env.RELEASE_NOTES_PATH }}"
+          files: "${{ env.ARCHIVE_PATH }}"

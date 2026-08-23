@@ -317,7 +317,7 @@ final class MainViewModel: ObservableObject {
     }
 
     nonisolated private static var cliBinaryURL: URL {
-        repoRootURL.appendingPathComponent("c/fol_tool_mac")
+        repoRootURL.appendingPathComponent("bin/mac/fol_tool_mac")
     }
 
     nonisolated private static func runProcess(

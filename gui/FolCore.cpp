@@ -99,21 +99,9 @@ std::wstring translate_core_message(const char* message)
     {
         return L"开始打包：" + after_prefix(text, L"Starting pack: ");
     }
-    if (starts_with(text, L"Loaded manifest entries: "))
+    if (starts_with(text, L"Scanned files: "))
     {
-        return L"已加载清单条目：" + after_prefix(text, L"Loaded manifest entries: ");
-    }
-    if (starts_with(text, L"Scanned asset files: "))
-    {
-        return L"已扫描资源文件：" + after_prefix(text, L"Scanned asset files: ");
-    }
-    if (starts_with(text, L"Manifest file missing on disk, skipping: "))
-    {
-        return L"清单中的文件不存在，已跳过：" + after_prefix(text, L"Manifest file missing on disk, skipping: ");
-    }
-    if (starts_with(text, L"New file detected: "))
-    {
-        return L"发现新增文件：" + after_prefix(text, L"New file detected: ");
+        return L"已扫描文件：" + after_prefix(text, L"Scanned files: ");
     }
     if (starts_with(text, L"Packed: "))
     {
@@ -144,7 +132,7 @@ std::wstring translate_result_message(int result)
     case FOL_ERROR_FORMAT:
         return L"FOL 格式无效或暂不支持。";
     case FOL_ERROR_MANIFEST:
-        return L"工作区或清单无效。";
+        return L"工作区目录无效。";
     case FOL_ERROR_FILESYSTEM:
         return L"文件系统操作失败。";
     default:

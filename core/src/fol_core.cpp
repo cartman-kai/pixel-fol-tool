@@ -28,19 +28,11 @@ namespace
 constexpr std::size_t kIndexEntrySize = 136;
 constexpr std::size_t kPaddingCount = 97;
 
-struct ManifestEntry
-{
-    std::string game_path;
-    std::uint32_t key = 0;
-    int index = 0;
-};
-
 struct DiskEntry
 {
     fs::path path;
     std::string game_path;
     std::uint32_t key = 0;
-    int index = 0;
 };
 
 std::mt19937 &rng()
@@ -265,7 +257,7 @@ bool is_safe_relative_path(const fs::path &path)
     return true;
 }
 
-bool safe_asset_path(const fs::path &assets_path, const std::string &game_path, fs::path &output)
+bool safe_output_path(const fs::path &base_dir, const std::string &game_path, fs::path &output)
 {
     if (game_path.empty() || game_path.find('\0') != std::string::npos)
     {
@@ -278,112 +270,15 @@ bool safe_asset_path(const fs::path &assets_path, const std::string &game_path, 
         return false;
     }
 
-    output = assets_path / relative;
+    output = base_dir / relative;
     return true;
 }
 
-std::vector<ManifestEntry> load_manifest(const fs::path &manifest_path, int &result_code)
-{
-    std::ifstream input(manifest_path, std::ios::binary);
-    if (!input)
-    {
-        result_code = FOL_ERROR_MANIFEST;
-        return {};
-    }
-
-    std::vector<ManifestEntry> entries;
-    std::string line;
-    while (std::getline(input, line))
-    {
-        if (line.empty() || line[0] == '#')
-        {
-            continue;
-        }
-
-        const std::size_t p1 = line.find('|');
-        const std::size_t p2 = line.find('|', p1 == std::string::npos ? p1 : p1 + 1);
-        if (p1 == std::string::npos || p2 == std::string::npos)
-        {
-            result_code = FOL_ERROR_MANIFEST;
-            return {};
-        }
-
-        ManifestEntry entry;
-        try
-        {
-            std::size_t consumed = 0;
-            entry.index = std::stoi(line.substr(0, p1), &consumed, 10);
-            if (consumed != p1 || entry.index < 0)
-            {
-                result_code = FOL_ERROR_MANIFEST;
-                return {};
-            }
-
-            const std::string key_text = line.substr(p1 + 1, p2 - p1 - 1);
-            consumed = 0;
-            const unsigned long key = std::stoul(key_text, &consumed, 10);
-            if (consumed != key_text.size() || key > std::numeric_limits<std::uint32_t>::max())
-            {
-                result_code = FOL_ERROR_MANIFEST;
-                return {};
-            }
-            entry.key = static_cast<std::uint32_t>(key);
-        }
-        catch (const std::exception &)
-        {
-            result_code = FOL_ERROR_MANIFEST;
-            return {};
-        }
-
-        entry.game_path = line.substr(p2 + 1);
-        while (!entry.game_path.empty() && (entry.game_path.back() == '\r' || entry.game_path.back() == '\n'))
-        {
-            entry.game_path.pop_back();
-        }
-        fs::path unused;
-        if (!safe_asset_path(fs::path("."), entry.game_path, unused))
-        {
-            result_code = FOL_ERROR_MANIFEST;
-            return {};
-        }
-        entries.push_back(std::move(entry));
-    }
-
-    std::sort(entries.begin(), entries.end(), [](const ManifestEntry &lhs, const ManifestEntry &rhs) {
-        if (lhs.index != rhs.index)
-        {
-            return lhs.index < rhs.index;
-        }
-        return lhs.game_path < rhs.game_path;
-    });
-
-    result_code = FOL_SUCCESS;
-    return entries;
-}
-
-int save_manifest(const fs::path &manifest_path, const std::vector<ManifestEntry> &entries)
-{
-    std::ofstream output(manifest_path, std::ios::binary);
-    if (!output)
-    {
-        return FOL_ERROR_WRITE;
-    }
-
-    output << "# FOL Manifest\n";
-    output << "# Format: Index|Key|GamePath\n";
-    for (const auto &entry : entries)
-    {
-        output << entry.index << '|' << entry.key << '|' << entry.game_path << '\n';
-    }
-
-    return output.good() ? FOL_SUCCESS : FOL_ERROR_WRITE;
-}
-
-std::vector<DiskEntry> scan_assets(const fs::path &assets_dir, int &result_code)
+std::vector<DiskEntry> scan_workspace_files(const fs::path &root_dir, int &result_code)
 {
     std::vector<DiskEntry> files;
     std::error_code error;
-    fs::recursive_directory_iterator it(assets_dir, error);
+    fs::recursive_directory_iterator it(root_dir, error);
     if (error)
     {
         result_code = FOL_ERROR_FILESYSTEM;
@@ -403,9 +298,9 @@ std::vector<DiskEntry> scan_assets(const fs::path &assets_dir, int &result_code)
 
         DiskEntry file;
         file.path = entry.path();
-        file.game_path = game_path_from_relative_path(fs::relative(entry.path(), assets_dir));
+        file.game_path = game_path_from_relative_path(fs::relative(entry.path(), root_dir));
         fs::path unused;
-        if (!safe_asset_path(fs::path("."), file.game_path, unused))
+        if (!safe_output_path(fs::path("."), file.game_path, unused))
         {
             result_code = FOL_ERROR_FILESYSTEM;
             return {};
@@ -433,8 +328,6 @@ int fol_unpack(const char *input_fol, const char *output_dir, FolLogCallback cal
 
     const fs::path input_path = path_from_utf8(input_fol);
     const fs::path output_path = path_from_utf8(output_dir);
-    const fs::path assets_path = output_path / "assets";
-    const fs::path manifest_path = output_path / "manifest.txt";
 
     log_message(callback, user_data, 0, FOL_LOG_INFO, "Starting unpack: " + utf8_from_path(input_path));
 
@@ -487,7 +380,7 @@ int fol_unpack(const char *input_fol, const char *output_dir, FolLogCallback cal
     }
 
     std::error_code fs_error;
-    fs::create_directories(assets_path, fs_error);
+    fs::create_directories(output_path, fs_error);
     if (fs_error)
     {
         std::fclose(input);
@@ -524,8 +417,6 @@ int fol_unpack(const char *input_fol, const char *output_dir, FolLogCallback cal
 
     const std::uint32_t data_base = static_cast<std::uint32_t>(data_base_wide);
     const std::uintmax_t key_table_offset = archive_size - footer_size;
-    std::vector<ManifestEntry> manifest_entries;
-    manifest_entries.reserve(static_cast<std::size_t>(file_count));
 
     for (int i = 0; i < file_count; ++i)
     {
@@ -545,8 +436,6 @@ int fol_unpack(const char *input_fol, const char *output_dir, FolLogCallback cal
         {
             offset += data_base;
         }
-
-        manifest_entries.push_back({game_path, key, i});
 
         if (size > 0)
         {
@@ -572,7 +461,7 @@ int fol_unpack(const char *input_fol, const char *output_dir, FolLogCallback cal
 
             transform_content(content, key, false);
             fs::path output_file;
-            if (!safe_asset_path(assets_path, game_path, output_file))
+            if (!safe_output_path(output_path, game_path, output_file))
             {
                 result = FOL_ERROR_FORMAT;
                 break;
@@ -608,12 +497,6 @@ int fol_unpack(const char *input_fol, const char *output_dir, FolLogCallback cal
         return result;
     }
 
-    result = save_manifest(manifest_path, manifest_entries);
-    if (result != FOL_SUCCESS)
-    {
-        return result;
-    }
-
     log_message(callback, user_data, 100, FOL_LOG_INFO, "Unpack completed");
     return FOL_SUCCESS;
 }
@@ -626,11 +509,9 @@ int fol_pack(const char *input_dir, const char *output_fol, FolLogCallback callb
     }
 
     const fs::path workspace_dir = path_from_utf8(input_dir);
-    const fs::path assets_dir = workspace_dir / "assets";
-    const fs::path manifest_path = workspace_dir / "manifest.txt";
     const fs::path output_path = path_from_utf8(output_fol);
 
-    if (!fs::exists(assets_dir) || !fs::exists(manifest_path))
+    if (!fs::is_directory(workspace_dir))
     {
         return FOL_ERROR_MANIFEST;
     }
@@ -638,61 +519,21 @@ int fol_pack(const char *input_dir, const char *output_fol, FolLogCallback callb
     log_message(callback, user_data, 0, FOL_LOG_INFO, "Starting pack: " + utf8_from_path(workspace_dir));
 
     int result = FOL_SUCCESS;
-    const std::vector<ManifestEntry> manifest_entries = load_manifest(manifest_path, result);
+    std::vector<DiskEntry> final_entries = scan_workspace_files(workspace_dir, result);
     if (result != FOL_SUCCESS)
     {
         return result;
     }
-    log_message(callback, user_data, 10, FOL_LOG_INFO, "Loaded manifest entries: " + std::to_string(manifest_entries.size()));
+    log_message(callback, user_data, 20, FOL_LOG_INFO, "Scanned files: " + std::to_string(final_entries.size()));
 
-    std::vector<DiskEntry> disk_entries = scan_assets(assets_dir, result);
-    if (result != FOL_SUCCESS)
+    for (auto &entry : final_entries)
     {
-        return result;
+        entry.key = random_key();
     }
-    log_message(callback, user_data, 20, FOL_LOG_INFO, "Scanned asset files: " + std::to_string(disk_entries.size()));
-
-    std::vector<int> used(disk_entries.size(), 0);
-    std::vector<DiskEntry> final_entries;
-    final_entries.reserve(disk_entries.size());
-
-    for (const auto &manifest_entry : manifest_entries)
-    {
-        auto match = std::find_if(disk_entries.begin(), disk_entries.end(), [&](const DiskEntry &entry) {
-            return entry.game_path == manifest_entry.game_path && !used[static_cast<std::size_t>(&entry - disk_entries.data())];
-        });
-
-        if (match == disk_entries.end())
-        {
-            log_message(callback, user_data, 25, FOL_LOG_WARNING, "Manifest file missing on disk, skipping: " + log_text_from_game_path(manifest_entry.game_path));
-            continue;
-        }
-
-        const std::size_t index = static_cast<std::size_t>(match - disk_entries.begin());
-        used[index] = 1;
-        match->key = manifest_entry.key;
-        match->index = manifest_entry.index;
-        final_entries.push_back(*match);
-    }
-
-    std::vector<DiskEntry> new_entries;
-    for (std::size_t i = 0; i < disk_entries.size(); ++i)
-    {
-        if (used[i] != 0)
-        {
-            continue;
-        }
-        disk_entries[i].key = random_key();
-        disk_entries[i].index = 999999;
-        new_entries.push_back(disk_entries[i]);
-        log_message(callback, user_data, 30, FOL_LOG_INFO, "New file detected: " + log_text_from_game_path(disk_entries[i].game_path));
-    }
-
-    std::sort(new_entries.begin(), new_entries.end(), [](const DiskEntry &lhs, const DiskEntry &rhs) {
+    std::sort(final_entries.begin(), final_entries.end(), [](const DiskEntry &lhs, const DiskEntry &rhs) {
         return lhs.game_path < rhs.game_path;
     });
 
-    final_entries.insert(final_entries.end(), new_entries.begin(), new_entries.end());
     if (final_entries.empty())
     {
         return FOL_ERROR_MANIFEST;
@@ -846,7 +687,7 @@ const char *fol_result_message(int code)
     case FOL_ERROR_FORMAT:
         return "invalid or unsupported fol format";
     case FOL_ERROR_MANIFEST:
-        return "invalid workspace or manifest";
+        return "invalid workspace";
     case FOL_ERROR_FILESYSTEM:
         return "filesystem operation failed";
     default:

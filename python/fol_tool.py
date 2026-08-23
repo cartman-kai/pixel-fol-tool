@@ -1,10 +1,7 @@
 import struct
 import os
-import sys
 import random
 import argparse
-import json
-import binascii
 
 # ============================
 # 核心加密/解密类
@@ -50,51 +47,21 @@ class FolCrypto:
         return result_data
 
 # ============================
-# 密钥清单管理
-# ============================
-class FolKeyManager:
-    @staticmethod
-    def save_manifest(file_path, entries):
-        try:
-            sorted_entries = sorted(entries, key=lambda x: x['index'])
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(sorted_entries, f, indent=2, ensure_ascii=False)
-            print(f"[+] 密钥清单已保存: {file_path}")
-        except Exception as e:
-            print(f"[!] 保存清单失败: {e}")
-
-    @staticmethod
-    def load_manifest(file_path):
-        if not os.path.exists(file_path): return None
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"[!] 读取清单失败: {e}")
-            return None
-
-# ============================
-# 打包器 (修复版)
+# 打包器
 # ============================
 class FolPacker:
-    def __init__(self, source_folder, output_file, key_file=None):
+    def __init__(self, source_folder, output_file):
         self.source_folder = source_folder
         self.output_file = output_file
-        self.key_file = key_file
         self.files_to_pack = []
 
     def pack(self):
-        if not os.path.isdir(self.source_folder): 
+        if not os.path.isdir(self.source_folder):
             print(f"[!] 错误：目录不存在 {self.source_folder}")
             return
-        
-        # 1. 准备文件列表
-        disk_files = self._scan_disk_files()
-        manifest = None
-        if self.key_file:
-            manifest = FolKeyManager.load_manifest(self.key_file)
-        
-        self._build_pack_list(disk_files, manifest)
+
+        # 1. 准备文件列表：全部随机密钥，按路径排序（游戏读取不依赖文件顺序）
+        self._build_pack_list(self._scan_disk_files())
         file_count = len(self.files_to_pack)
         
         if file_count == 0:
@@ -186,39 +153,22 @@ class FolPacker:
         files_map = {}
         for root, dirs, files in os.walk(self.source_folder):
             for file in files:
-                if file.endswith(".key") or file.endswith(".json") or file == ".DS_Store": continue
+                if file == ".DS_Store": continue
                 full_path = os.path.join(root, file)
                 rel_path = os.path.relpath(full_path, self.source_folder)
                 game_path = rel_path.replace('/', '\\')
                 files_map[game_path] = full_path
         return files_map
 
-    def _build_pack_list(self, disk_files_map, manifest):
-        processed = set()
-        if manifest:
-            manifest.sort(key=lambda x: x['index'])
-            for entry in manifest:
-                g_path = entry['name']
-                if g_path in disk_files_map:
-                    self.files_to_pack.append({
-                        'full_path': disk_files_map[g_path],
-                        'game_path': g_path,
-                        'key': entry['key']
-                    })
-                    processed.add(g_path)
-        
-        # 新增文件
-        new_files = []
+    def _build_pack_list(self, disk_files_map):
+        self.files_to_pack = []
         for g_path, f_path in disk_files_map.items():
-            if g_path not in processed:
-                print(f"[*] 发现新文件: {g_path}")
-                new_files.append({
-                    'full_path': f_path,
-                    'game_path': g_path,
-                    'key': random.randint(0, 0xFFFFFFFF)
-                })
-        new_files.sort(key=lambda x: x['game_path'])
-        self.files_to_pack.extend(new_files)
+            self.files_to_pack.append({
+                'full_path': f_path,
+                'game_path': g_path,
+                'key': random.randint(0, 0xFFFFFFFF)
+            })
+        self.files_to_pack.sort(key=lambda x: x['game_path'])
 
     def _create_index_entry(self, filename, offset, size, key):
         entry_buffer = bytearray(136)
@@ -242,7 +192,6 @@ class FolExtractor:
         self.input_file = input_file
         self.output_dir = output_dir
         self.keys = []
-        self.manifest_data = []
 
     def extract(self):
         if not os.path.exists(self.input_file): 
@@ -291,7 +240,6 @@ class FolExtractor:
                     with open(out_path, 'wb') as f_out:
                         f_out.write(dec_data)
                 
-                FolKeyManager.save_manifest(self.output_dir + ".key", self.manifest_data)
                 print("[+] 提取完成！")
 
         except Exception as e:
@@ -320,7 +268,6 @@ class FolExtractor:
             if offset < data_base and offset > 0: offset += data_base
             
             entries.append({'name': name, 'offset': offset, 'size': size})
-            self.manifest_data.append({'name': name.replace('/', '\\'), 'key': key, 'index': i})
         return entries
 
 # ============================
@@ -337,22 +284,16 @@ def main():
     p_pack = subparsers.add_parser('pack')
     p_pack.add_argument('input_dir')
     p_pack.add_argument('-o', '--out')
-    p_pack.add_argument('--key-file')
-    
+
     args = parser.parse_args()
-    
+
     if args.command == 'unpack':
         out = args.out if args.out else f"{os.path.splitext(os.path.basename(args.input_file))[0]}_fol"
         FolExtractor(args.input_file, out).extract()
-        
+
     elif args.command == 'pack':
         out = args.out if args.out else "output.fol"
-        key_file = args.key_file
-        if not key_file:
-            pot = args.input_dir.rstrip(os.sep) + ".key"
-            if os.path.exists(pot): key_file = pot
-        
-        FolPacker(args.input_dir, out, key_file).pack()
+        FolPacker(args.input_dir, out).pack()
 
 if __name__ == "__main__":
     main()

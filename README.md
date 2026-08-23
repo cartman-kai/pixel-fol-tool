@@ -1,8 +1,15 @@
 # Pixel Fol Tool
 
+> A tool for extracting, modifying, and repacking `.fol` resource archives from Pixel Software games. One shared C/C++ core with multiple frontends: Windows CLI, Windows GUI, and macOS GUI. A standalone Python implementation is also included for scripting and reference. See [FOL 文件格式分析](#fol-文件格式分析) for the archive format details.
+
 **免责声明：本工具仅供学习研究和技术交流使用。请确保你对处理的资源文件拥有合法权利，并遵守适用法律与游戏资源授权。**
 
-用于提取、修改并重新打包 Pixel Software 游戏中的 `.fol` 资源文件。当前仓库采用“一套共享核心，多套前端”的结构：Windows Terminal、Windows GUI、macOS CLI 共用同一套 C/C++ 核心实现；Python 版本保留为独立脚本实现。
+## 功能特性
+
+- 解包 / 修改 / 重新打包 `.fol` 归档，多项式加密自动处理
+- 一套共享核心（`core/`，稳定 C ABI），多套前端：Windows Terminal CLI、Win32 GUI、macOS SwiftUI GUI
+- 独立 Python 实现，适合跨平台脚本自动化
+- Round-trip 回归测试：动态生成 synthetic 样例，不依赖第三方游戏资源
 
 ## 项目结构
 
@@ -12,23 +19,34 @@
 - `mac/`: SwiftUI macOS GUI，通过 `Process` 调用 `c/` 中构建出的 CLI。
 - `python/`: 独立的 Python 实现。
 - `tests/`: 回归测试脚本。测试默认动态生成 synthetic `.fol`，不提交游戏资源样例。
+- `scripts/`: 发布与 CI 打包脚本。
 - `docs/`: 架构说明与测试说明。
+- `CHANGELOG.md`: 变更记录，发布 tag 形如 `v1.0.0`。
+
+## 环境要求
+
+- Windows：Visual Studio 2022（MSBuild，Developer PowerShell）
+- macOS：Xcode Command Line Tools（`clang++`，C++20）
+- Python（可选）：3.6+
 
 ## 构建
 
-### Windows GUI
+### Windows（GUI + CLI）
 
-使用 Visual Studio 2022 或 Developer PowerShell:
+使用 Visual Studio 2022 或 Developer PowerShell，根级解决方案一次构建全部产物：
 
 ```powershell
-msbuild gui/FolToolG.sln /p:Configuration=Release /p:Platform=x64
+msbuild pixel-fol-tool.sln /p:Configuration=Release /p:Platform=x64
 ```
 
-### Windows Terminal CLI
+也可单独构建某个工程（输出目录不变）：
 
 ```powershell
 msbuild c/FolToolCli.vcxproj /p:Configuration=Release /p:Platform=x64
+msbuild gui/FolToolG.vcxproj /p:Configuration=Release /p:Platform=x64
 ```
+
+构建输出统一在 `bin\<Platform>\<Configuration>\`（如 `bin\x64\Release\FolToolG.exe`、`bin\x64\Release\FolToolCli.exe`），中间产物收拢在 `build\obj\`。
 
 ### macOS 共享 CLI
 
@@ -37,7 +55,15 @@ cd c
 make mac
 ```
 
-生成物为 `c/fol_tool_mac`。`mac/` 图形界面会优先复用它，不存在时自动执行一次本地构建。
+生成物为 `bin/mac/fol_tool_mac`。`mac/` 图形界面会优先复用它，不存在时自动执行一次本地构建。另提供 `make windows`（需 `mingw-w64`）与 `make linux` 交叉编译目标。
+
+### 本地发布集合
+
+```powershell
+pwsh scripts/publish.ps1
+```
+
+将 `bin\x64\Release\` 下的可执行文件拷贝到 `release\`，作为对外发布的稳定集合。
 
 ### Python
 
@@ -46,30 +72,41 @@ cd python
 python fol_tool.py -h
 ```
 
+## GitHub 发布（CI）
+
+推送 `v*` tag（如 `v1.0.0`）后，GitHub Actions 自动构建 Windows x64/x86 并创建 Release：
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+发布包由 `scripts/prepare_release_package.ps1` 生成：从 `gui/FolToolWin.rc` 读取版本号，从 `CHANGELOG.md` 提取对应 tag 章节作为 Release 说明。
+
 ## Round-Trip 测试
 
 推荐使用共享 CLI 做本地回归：
 
 1. 生成或选择一个你有权使用的 `.fol`
-2. 修改 `assets/` 下任意文件
-3. 重新打包
-4. 再次解包到新目录
-5. 校验修改后的文件字节内容一致
+2. 解包到目标目录（文件直接解到该目录下，无额外子目录）
+3. 修改任意解包出的文件
+4. 重新打包（直接选中该目录）
+5. 再次解包到新目录
+6. 校验修改后的文件字节内容一致
 
 Windows PowerShell 可直接运行：
 
 ```powershell
-pwsh -File tests/run-roundtrip.ps1 -CliPath c\x64\Release\FolToolCli.exe
+pwsh -File tests/run-roundtrip.ps1 -CliPath bin\x64\Release\FolToolCli.exe
 ```
 
 脚本会先用 synthetic 工作区生成一个最小 `.fol`，再执行完整 round-trip。也可以传入你有权使用的外部样例：
 
 ```powershell
-pwsh -File tests/run-roundtrip.ps1 -CliPath c\x64\Release\FolToolCli.exe -InputFol path\to\sample.fol
+pwsh -File tests/run-roundtrip.ps1 -CliPath bin\x64\Release\FolToolCli.exe -InputFol path\to\sample.fol
 ```
 
 更详细的结构与测试说明见 [docs/architecture.md](docs/architecture.md) 和 [docs/testing.md](docs/testing.md)。
-
 
 ---
 
@@ -134,3 +171,14 @@ pwsh -File tests/run-roundtrip.ps1 -CliPath c\x64\Release\FolToolCli.exe -InputF
 `SEEK_END - 4 * (97 + FileCount)`
 
 因此写入流程需要在 `Key Table` 后追加 97 个 `uint32` 零填充。
+
+---
+
+## 开源许可与贡献
+
+本项目基于 [GPL-3.0](LICENSE) 开源。欢迎以 Issue 报告问题、以 Pull Request 提交改进：
+
+- 涉及归档协议或打包规则的改动请放在 `core/`，前端只做参数与展示适配；
+- 提交前运行 `tests/run-roundtrip.ps1` 确认回归通过；
+- GUI 改动请在 PR 中附截图，说明影响的平台与验证步骤；
+- 完整变更记录见 [CHANGELOG.md](CHANGELOG.md)。
