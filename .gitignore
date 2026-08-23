@@ -1,0 +1,82 @@
+# Claude Code (local settings, do not publish)
+.claude/settings.local.json
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.sdf
+*.opensdf
+*.db
+*.opendb
+*.VC.db
+*.VC.opendb
+
+# Build outputs
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+*.exe
+*.dll
+*.pdb
+*.ilk
+*.obj
+*.log
+*.tlog
+*.idb
+*.ipch
+*.iobj
+*.ipdb
+
+# Resource compiler temp files
+*.aps
+RC*/
+RD*/
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# C/C++ compiled
+*.o
+*.a
+*.out
+fol_tool
+fol_tool_mac
+
+tmp/
+
+# Release packaging (scripts/prepare_release_package.ps1)
+release_zip/
+release_notes.md
+pixel-fol-tool_*_win.zip
+pixel-fol-tool_*_win.zip.sha256
+
+# Do not commit third-party game archives.
+tests/fixtures/fols/*.fol

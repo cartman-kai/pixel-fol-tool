@@ -1,0 +1,154 @@
+name: CI and Release
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  windows-build:
+    name: Windows Release (${{ matrix.platform }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: x64
+            output_dir: x64
+          - platform: x86
+            output_dir: Win32
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build solution
+        run: msbuild pixel-fol-tool.sln /p:Configuration=Release /p:Platform=${{ matrix.platform }} /m
+
+      - name: Run synthetic round-trip test
+        shell: pwsh
+        run: ./tests/run-roundtrip.ps1 -CliPath "bin/${{ matrix.output_dir }}/Release/FolToolCli.exe"
+
+      - name: Upload Windows executables
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.platform }}
+          path: |
+            bin/${{ matrix.output_dir }}/Release/FolToolG.exe
+            bin/${{ matrix.output_dir }}/Release/FolToolCli.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  macos-build:
+    name: macOS Build
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build shared CLI
+        run: make -C c mac
+
+      - name: Build SwiftUI frontend
+        run: swift build --package-path mac -c release
+
+  python-smoke:
+    name: Python Smoke Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Check Python CLI
+        run: |
+          python -m py_compile python/fol_tool.py
+          python python/fol_tool.py -h
+
+  release:
+    name: Publish Release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - windows-build
+      - macos-build
+      - python-smoke
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Windows x64 executables
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-x64
+          path: bin/x64/Release
+
+      - name: Download Windows x86 executables
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-x86
+          path: bin/Win32/Release
+
+      - name: Prepare release package
+        shell: pwsh
+        run: |
+          $metadata = ./scripts/prepare_release_package.ps1
+          $metadata
+          $metadata | Where-Object { $_ -match '^[A-Z_]+=' } | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Check whether version is already released
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          gh release view $env:TAG_NAME 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            "SHOULD_RELEASE=false" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            Write-Host "Release $env:TAG_NAME already exists; skipping publication."
+          }
+          else {
+            "SHOULD_RELEASE=true" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          }
+
+      - name: Upload release package artifact
+        if: env.SHOULD_RELEASE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixel-fol-tool-${{ env.TAG_NAME }}-windows
+          path: |
+            ${{ env.ARCHIVE_PATH }}
+            ${{ env.CHECKSUM_PATH }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: env.SHOULD_RELEASE == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "${{ env.TAG_NAME }}"
+          target_commitish: "${{ github.sha }}"
+          body_path: "${{ env.RELEASE_NOTES_PATH }}"
+          files: |
+            ${{ env.ARCHIVE_PATH }}
+            ${{ env.CHECKSUM_PATH }}
+          make_latest: true

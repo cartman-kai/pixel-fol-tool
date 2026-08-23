@@ -1,0 +1,163 @@
+// 必须在任何 include 之前声明代码页：否则中文注释会按系统 ANSI 代码页解析，
+// 可能吞掉行尾换行符，导致后续 #ifndef 等预处理指令失效（中文系统尤其明显）
+#pragma code_page(65001)
+
+#include <windows.h>
+#include "resource.h"
+#include "winres.h"
+
+// ============================================================
+// 0. 图标 (EXE 文件图标)
+// ============================================================
+IDI_MAIN_ICON           ICON                    "FolG.ico"
+
+// ============================================================
+// 1. 设置界面语言
+// ============================================================
+LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
+
+// ============================================================
+// 2. 字符串表 (多语言支持)
+// 窗口与控件由 FolToolWin.cpp 手工创建，文案统一取自字符串表。
+// ============================================================
+
+// 默认语言也使用中文，避免非中文系统下控件回退到英文。
+STRINGTABLE LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+BEGIN
+IDS_APP_TITLE       "FOL 游戏资源工具 - v1.0.1"
+IDS_TAB_UNPACK      "解包"
+IDS_TAB_PACK        "打包"
+IDS_LBL_FOL_FILE    "FOL 文件:"
+IDS_LBL_OUT_DIR     "输出目录:"
+IDS_LBL_IN_DIR      "资源目录:"
+IDS_LBL_SAVE_TO     "保存到:"
+IDS_BTN_BROWSE      "浏览..."
+IDS_BTN_UNPACK      "开始解包"
+IDS_BTN_PACK        "开始打包"
+IDS_LBL_LOG         "状态日志:"
+IDS_COL_PATH        "文件路径"
+IDS_COL_SIZE        "大小"
+IDS_ST_NO_FILE      "未选择 .fol 文件。"
+IDS_ST_FILES        "共 %d 个文件"
+IDS_READY           "准备就绪。"
+IDS_ERR_NO_FOL      "请先选择一个 .fol 文件。"
+IDS_ERR_NO_DIR      "请先选择一个目录。"
+IDS_SUCCESS         "操作成功完成！"
+IDS_ERR_BUSY        "任务进行中，请稍候。"
+IDS_TAB_ABOUT       "关于"
+IDS_ABOUT_VERSION   "版本"
+IDS_ABOUT_AUTHOR    "作者"
+END
+
+// 中文 (简体)
+STRINGTABLE LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED
+BEGIN
+IDS_APP_TITLE       "FOL 游戏资源工具 - v1.0.1"
+IDS_TAB_UNPACK      "解包"
+IDS_TAB_PACK        "打包"
+IDS_LBL_FOL_FILE    "FOL 文件:"
+IDS_LBL_OUT_DIR     "输出目录:"
+IDS_LBL_IN_DIR      "资源目录:"
+IDS_LBL_SAVE_TO     "保存到:"
+IDS_BTN_BROWSE      "浏览..."
+IDS_BTN_UNPACK      "开始解包"
+IDS_BTN_PACK        "开始打包"
+IDS_LBL_LOG         "状态日志:"
+IDS_COL_PATH        "文件路径"
+IDS_COL_SIZE        "大小"
+IDS_ST_NO_FILE      "未选择 .fol 文件。"
+IDS_ST_FILES        "共 %d 个文件"
+IDS_READY           "准备就绪。"
+IDS_ERR_NO_FOL      "请先选择一个 .fol 文件。"
+IDS_ERR_NO_DIR      "请先选择一个目录。"
+IDS_SUCCESS         "操作成功完成！"
+IDS_ERR_BUSY        "任务进行中，请稍候。"
+IDS_TAB_ABOUT       "关于"
+IDS_ABOUT_VERSION   "版本"
+IDS_ABOUT_AUTHOR    "作者"
+END
+
+// 中文 (繁体)
+STRINGTABLE LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_TRADITIONAL
+BEGIN
+IDS_APP_TITLE       "FOL 遊戲資源工具 - v1.0.1"
+IDS_TAB_UNPACK      "解包"
+IDS_TAB_PACK        "打包"
+IDS_LBL_FOL_FILE    "FOL 檔案:"
+IDS_LBL_OUT_DIR     "輸出目錄:"
+IDS_LBL_IN_DIR      "資源目錄:"
+IDS_LBL_SAVE_TO     "儲存到:"
+IDS_BTN_BROWSE      "瀏覽..."
+IDS_BTN_UNPACK      "開始解包"
+IDS_BTN_PACK        "開始打包"
+IDS_LBL_LOG         "狀態日誌:"
+IDS_COL_PATH        "檔案路徑"
+IDS_COL_SIZE        "大小"
+IDS_ST_NO_FILE      "未選擇 .fol 檔案。"
+IDS_ST_FILES        "共 %d 個檔案"
+IDS_READY           "準備就緒。"
+IDS_ERR_NO_FOL      "請先選擇一個 .fol 檔案。"
+IDS_ERR_NO_DIR      "請先選擇一個目錄。"
+IDS_SUCCESS         "操作成功完成！"
+IDS_ERR_BUSY        "任務進行中，請稍候。"
+IDS_TAB_ABOUT       "關於"
+IDS_ABOUT_VERSION   "版本"
+IDS_ABOUT_AUTHOR    "作者"
+END
+
+// ============================================================
+// 3. Manifest (启用视觉样式控件与 DPI 感知)
+// ============================================================
+1 RT_MANIFEST
+BEGIN
+"<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>\r\n"
+"<assembly xmlns=""urn:schemas-microsoft-com:asm.v1"" manifestVersion=""1.0"">\r\n"
+"  <dependency>\r\n"
+"    <dependentAssembly>\r\n"
+"      <assemblyIdentity type=""win32"" name=""Microsoft.Windows.Common-Controls"" version=""6.0.0.0"" processorArchitecture=""*"" publicKeyToken=""6595b64144ccf1df"" language=""*"" />\r\n"
+"    </dependentAssembly>\r\n"
+"  </dependency>\r\n"
+"  <application xmlns=""urn:schemas-microsoft-com:asm.v3"">\r\n"
+"    <windowsSettings>\r\n"
+"      <dpiAware xmlns=""http://schemas.microsoft.com/SMI/2005/WindowsSettings"">true</dpiAware>\r\n"
+"      <dpiAwareness xmlns=""http://schemas.microsoft.com/SMI/2016/WindowsSettings"">PerMonitorV2</dpiAwareness>\r\n"
+"    </windowsSettings>\r\n"
+"  </application>\r\n"
+"</assembly>"
+END
+
+// ============================================================
+// 4. 版本信息 (右键属性可见)
+// ============================================================
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION 1, 0, 1, 0
+PRODUCTVERSION 1, 0, 1, 0
+FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+FILEFLAGS 0x1L
+#else
+FILEFLAGS 0x0L
+#endif
+FILEOS 0x40004L
+FILETYPE 0x1L
+FILESUBTYPE 0x0L
+BEGIN
+BLOCK "StringFileInfo"
+BEGIN
+BLOCK "080404b0" // 中文 (简体)
+BEGIN
+VALUE "CompanyName", "cartman-kai"
+VALUE "FileDescription", "刀剑封魔录系列 fol 文件解包与打包工具"
+VALUE "FileVersion", "1.0.1.0"
+VALUE "InternalName", "FolToolG.exe"
+VALUE "LegalCopyright", "Copyright (C) 2024 cartman-kai"
+VALUE "OriginalFilename", "FolToolG.exe"
+VALUE "ProductName", "FOL Tool"
+VALUE "ProductVersion", "1.0.1.0"
+END
+END
+BLOCK "VarFileInfo"
+BEGIN
+VALUE "Translation", 0x804, 1200
+END
+END
