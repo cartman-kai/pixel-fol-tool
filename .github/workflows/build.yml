@@ -28,10 +28,10 @@ jobs:
             output_dir: Win32
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Add MSBuild to PATH
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
 
       - name: Build solution
         run: msbuild pixel-fol-tool.sln /p:Configuration=Release /p:Platform=${{ matrix.platform }} /m
@@ -42,7 +42,7 @@ jobs:
 
       - name: Upload Windows executables
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-${{ matrix.platform }}
           path: |
@@ -56,7 +56,7 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build shared CLI
         run: make -C c mac
@@ -69,9 +69,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
 
@@ -92,18 +92,18 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Download Windows x64 executables
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: windows-x64
           path: bin/x64/Release
 
       - name: Download Windows x86 executables
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: windows-x86
           path: bin/Win32/Release
@@ -129,10 +129,11 @@ jobs:
           else {
             "SHOULD_RELEASE=true" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           }
+          exit 0
 
       - name: Upload release package artifact
         if: env.SHOULD_RELEASE == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pixel-fol-tool-${{ env.TAG_NAME }}-windows
           path: |
@@ -143,7 +144,7 @@ jobs:
 
       - name: Create GitHub Release
         if: env.SHOULD_RELEASE == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: "${{ env.TAG_NAME }}"
           target_commitish: "${{ github.sha }}"
